@@ -710,10 +710,14 @@ OBSERVATION_RULES = [
         "condition_description": "Always fires.",
         "template": (
             "Within your profile, {LOWEST_PILLAR_NAME} represents the area of most acute "
-            "development need, with a pillar score of {LOWEST_PILLAR_SCORE}. The specific "
-            "practice that scores lowest within this pillar concerns {LOWEST_ITEM_SHORT_LABEL} "
-            "(Item {LOWEST_ITEM_ID}, rated {LOWEST_ITEM_SCORE}/5). This item often anchors "
-            "the broader pillar score and is a productive starting point for focused remediation."
+            "development need, with a pillar score of {LOWEST_PILLAR_SCORE} out of 100. "
+            "The specific practice that scores lowest within this pillar concerns "
+            "{LOWEST_ITEM_SHORT_LABEL} (Item {LOWEST_ITEM_ID}, rated {LOWEST_ITEM_SCORE}/5). "
+            "In diagnostic practice across African education institutions, this item is a "
+            "reliable leading indicator: where it scores 1 or 2, it typically anchors the "
+            "broader pillar score and is the most productive starting point for focused "
+            "remediation — small, concrete improvements here tend to unlock progress "
+            "across related items in the same pillar."
         ),
         "placeholders": [
             "LOWEST_PILLAR_NAME",
@@ -731,11 +735,14 @@ OBSERVATION_RULES = [
         "template": (
             "Your profile shows a notable divergence between Governance & Policy "
             "(scored {P1_SCORE}) and Data Foundations (scored {P2_SCORE}) — a gap of "
-            "{GAP} points. This pattern is common in institutions that have prioritised "
-            "compliance documentation ahead of data substrate work. The practical effect "
-            "is that strong policies govern data practices that are not yet structured "
-            "well enough to support them. Closing this gap typically requires targeted "
-            "data architecture and quality investment rather than further policy development."
+            "{GAP} points. This pattern is recognised across institutions at this stage: "
+            "compliance activity and policy drafting tend to outpace the slower, "
+            "less visible work of data quality, standardisation, and ownership assignment. "
+            "The practical consequence is that strong policies govern data practices that "
+            "are not yet structured well enough to sustain them. AI systems that ingest "
+            "poor-quality or unstructured data will produce unreliable outputs regardless "
+            "of how well-governed the procurement process was. Closing this gap typically "
+            "requires a dedicated data quality programme — not further policy development."
         ),
         "placeholders": ["P1_SCORE", "P2_SCORE", "GAP"],
     },
@@ -746,14 +753,16 @@ OBSERVATION_RULES = [
         "condition_description": "p1 - p4 >= 20",
         "template": (
             "Ethical Infrastructure (scored {P4_SCORE}) scores materially below "
-            "Governance & Policy (scored {P1_SCORE}). This configuration — strong written "
-            "governance, weaker operational ethics — is worth noting because ethics "
-            "infrastructure requires active institutional machinery: review mechanisms, "
-            "recourse paths, and consultation processes, rather than policy language alone. "
-            "The gap suggests that policy commitments have not yet been fully operationalised "
-            "into practice-level structures."
+            "Governance & Policy (scored {P1_SCORE}) — a gap of {P1_MINUS_P4} points. "
+            "This configuration is worth naming directly: written policy does not "
+            "automatically produce operational ethics. Ethics infrastructure requires "
+            "active institutional machinery — bias review processes, recourse paths "
+            "that affected parties actually know about, consultation mechanisms that "
+            "demonstrably shape decisions, and oversight bodies with real authority. "
+            "Policy language without this machinery creates a legitimacy gap that becomes "
+            "visible the first time an AI-assisted decision is challenged."
         ),
-        "placeholders": ["P4_SCORE", "P1_SCORE"],
+        "placeholders": ["P4_SCORE", "P1_SCORE", "P1_MINUS_P4"],
     },
     {
         "rule_id": "R4",
@@ -761,13 +770,15 @@ OBSERVATION_RULES = [
         "always": False,
         "condition_description": "p3 is lowest pillar AND composite >= 50 AND composite - p3 >= 15",
         "template": (
-            "Your composite profile ({TIER}) is held at {COMPOSITE} in part because "
-            "Organisational Capacity (scored {P3_SCORE}) falls {DRAG} points below your "
-            "composite average. This configuration — stronger policy, data, and ethics posture "
-            "relative to human capacity — is a common constraint in under-resourced settings. "
-            "It suggests that further gains in the other pillars may be constrained until "
-            "leadership alignment, technical skills, and change management capability are "
-            "strengthened."
+            "Your composite profile sits at {COMPOSITE} ({TIER}), but Organisational "
+            "Capacity (scored {P3_SCORE}) falls {DRAG} points below your composite "
+            "average — and is the lowest of your four pillars. This drag is significant "
+            "because human capacity is the implementation layer through which all other "
+            "investments are realised. Strong governance frameworks, high-quality data, "
+            "and ethical policies produce limited value if the institution lacks the "
+            "leadership alignment, technical skills, and change management capability "
+            "to act on them. Improving this pillar typically unlocks multiplier effects "
+            "across the other three."
         ),
         "placeholders": ["TIER", "COMPOSITE", "P3_SCORE", "DRAG"],
     },
@@ -780,23 +791,206 @@ OBSERVATION_RULES = [
             "A": (  # composite >= 60
                 "Your profile is notably balanced across all four pillars, with a spread of "
                 "{SPREAD} points between your highest and lowest pillar score. At a composite "
-                "of {COMPOSITE} ({TIER}), this indicates consistent institutional development "
-                "rather than uneven progress. Balanced profiles at this tier typically benefit "
-                "most from deepening practice within each pillar concurrently, rather than "
-                "targeted remediation of any single area."
+                "of {COMPOSITE} ({TIER}), this reflects consistent institutional development "
+                "rather than uneven progress — a profile that is meaningfully harder to achieve "
+                "than it might appear. Institutions at this tier with balanced profiles typically "
+                "benefit most from deepening practice within each pillar concurrently: raising "
+                "each score by a further 10 points is more achievable and more durable than "
+                "attempting a step-change in a single area."
             ),
             "B": (  # composite < 60
                 "Your profile is balanced across all four pillars, with a spread of {SPREAD} "
                 "points between your highest and lowest pillar score. At a composite of "
-                "{COMPOSITE} ({TIER}), this balance reflects a consistent — if early-stage — "
-                "development posture across the institution. Because no single pillar is "
-                "dramatically weaker, capacity-building investment can be broadly distributed "
-                "rather than concentrated."
+                "{COMPOSITE} ({TIER}), this balance reflects a consistent early-stage development "
+                "posture. Because no single pillar is dramatically weaker than the others, "
+                "capacity-building investment can be broadly distributed. The recommended actions "
+                "below identify the highest-leverage activities in each pillar for institutions "
+                "at this stage — we suggest selecting one action per pillar and completing it "
+                "before adding more."
             ),
         },
         "placeholders": ["SPREAD", "COMPOSITE", "TIER"],
     },
+    {
+        "rule_id": "R6",
+        "label": "Highest pillar as leverage point for cross-pillar progress",
+        "always": False,
+        "condition_description": "highest_pillar_score >= 70 AND spread >= 20",
+        "template": (
+            "Your strongest pillar — {HIGHEST_PILLAR_NAME} (scored {HIGHEST_PILLAR_SCORE}) — "
+            "represents an institutional capability that can be leveraged to accelerate "
+            "progress in weaker pillars. Institutions with a demonstrably strong "
+            "{HIGHEST_PILLAR_SHORT} function are well-positioned to extend its disciplines "
+            "and processes into adjacent areas: {HIGHEST_PILLAR_LEVERAGE_TEXT} "
+            "This cross-pillar extension approach is typically more efficient than building "
+            "each pillar independently from scratch."
+        ),
+        "placeholders": [
+            "HIGHEST_PILLAR_NAME",
+            "HIGHEST_PILLAR_SCORE",
+            "HIGHEST_PILLAR_SHORT",
+            "HIGHEST_PILLAR_LEVERAGE_TEXT",
+        ],
+    },
 ]
+
+
+# ---------------------------------------------------------------------------
+# Per-pillar actionable roadmaps — score-band calibrated action items
+# ---------------------------------------------------------------------------
+# Score bands: low = score < 50, mid = 50–74, high >= 75
+# Each band has 3 action strings. Used by scoring.generate_roadmap().
+# ---------------------------------------------------------------------------
+
+PILLAR_ROADMAPS = {
+    "p1": {
+        "low": [
+            "Appoint a named Data Protection Officer (or equivalent role) with a written mandate, "
+            "even if part-time. The absence of a named owner is the single most common governance "
+            "gap at this stage.",
+            "Draft a one-page data sharing protocol as an immediate interim measure. It does not "
+            "need to be comprehensive — it needs to exist. A simple checklist covering: who "
+            "authorises, what legal basis applies, and whether the institution retains a copy of "
+            "what was shared.",
+            "Commission a regulatory mapping exercise against the applicable national regime "
+            "(NDPR, Ghana DPA, Kenya PDPA, or equivalent). This produces the evidence base on "
+            "which all subsequent compliance activity depends.",
+        ],
+        "mid": [
+            "Formalise your policy lifecycle: assign version numbers, review dates, and a named "
+            "approver to each policy document. Policy drift — where documents exist but are never "
+            "updated — is the dominant failure mode at the Developing tier.",
+            "Introduce a quarterly consent audit: randomly sample 10% of consent records and "
+            "verify they are complete, purpose-linked, and accessible. This converts a "
+            "point-in-time compliance activity into a continuous one.",
+            "Document and test your incident escalation path at least annually. Walk through a "
+            "hypothetical breach scenario with relevant staff — the gaps in the walk-through "
+            "become your next action items.",
+        ],
+        "high": [
+            "Extend AI-specific procurement governance: require an AI impact statement for any "
+            "tool that processes student or staff data automatically. This is the governance "
+            "frontier for institutions already strong on foundational policy.",
+            "Engage proactively with your national data regulator — attend consultations, respond "
+            "to guidance documents. Institutions at the Mature tier shape sector norms rather "
+            "than only responding to them.",
+            "Review whether your governance framework explicitly addresses generative AI use by "
+            "staff and students — a category most African institution policies do not yet cover.",
+        ],
+    },
+    "p2": {
+        "low": [
+            "Conduct a data audit before investing in any new system. Produce a one-page "
+            "inventory of what data the institution holds, in what format, and where. You "
+            "cannot improve what you have not mapped.",
+            "Select one core dataset — student enrolment records are the typical starting point "
+            "— and establish a data quality baseline: completeness, accuracy, and uniqueness. "
+            "Prioritise a single dataset rather than attempting institution-wide remediation.",
+            "Assign data ownership for your top three datasets by naming a role (not a "
+            "department) responsible for each. Data owned by everyone is owned by no-one.",
+        ],
+        "mid": [
+            "Build a minimal data dictionary covering the 10–15 data fields most frequently "
+            "used across systems. Agree on shared definitions for key identifiers — particularly "
+            "student ID — to enable cross-system linkage.",
+            "Test data portability from your primary student information system: attempt a full "
+            "export in CSV or JSON without vendor assistance. Document the result. Vendor lock-in "
+            "on data portability is a common constraint discovered only at migration time.",
+            "Assess your most important datasets against a simple AI-readiness checklist: Is the "
+            "data structured? Is it labelled? Is it complete enough (>80% of records)? Is its "
+            "quality documented? This produces an honest substrate readiness profile.",
+        ],
+        "high": [
+            "Implement automated data quality monitoring: set threshold alerts for completeness "
+            "and consistency on your core datasets, reviewed at least monthly. Manual quality "
+            "checking does not scale as data volumes grow.",
+            "Establish data portability provisions in all new vendor contracts: require that data "
+            "be exportable in open formats within 30 days of request termination, at no "
+            "additional cost.",
+            "Document AI-readiness profiles for each major dataset: what use cases they can "
+            "support, what enrichment would extend their utility, and what quality gaps require "
+            "monitoring. This is the substrate documentation on which AI procurement decisions "
+            "should rest.",
+        ],
+    },
+    "p3": {
+        "low": [
+            "Secure an explicit, minuted leadership endorsement of a digital or AI direction — "
+            "even a one-paragraph position statement. Leadership alignment is not a precondition "
+            "for all capacity work, but its absence reliably limits how far other investments "
+            "travel.",
+            "Identify one or two internal staff with adjacent technical skills (data analysis, "
+            "ICT support, statistics) and invest in targeted upskilling rather than external "
+            "recruitment. Building internal champions is typically faster and more durable than "
+            "hiring in a competitive market.",
+            "Before introducing any new AI or data tool, document the change in two paragraphs: "
+            "what is changing, who it affects, and how staff can raise concerns. This is the "
+            "minimum viable change communication — it normalises the expectation of transparency.",
+        ],
+        "mid": [
+            "Develop a technology training plan tied to the institution's actual tool portfolio "
+            "rather than generic digital literacy. Training is most effective when staff can "
+            "apply it to systems they use within the following week.",
+            "Map human-AI workflow boundaries for any AI tool currently in use: for each tool, "
+            "answer three questions — what does the AI decide? What does the human decide? What "
+            "happens when they disagree? Ambiguity here is the root cause of most AI adoption "
+            "failures in education.",
+            "Introduce a biannual AI readiness self-check at the senior leadership level: one "
+            "structured conversation about what is working, what is not, and what the next "
+            "capability gap is. This prevents strategy documents from becoming shelf documents.",
+        ],
+        "high": [
+            "Build succession planning for technical roles into your HR processes: for each key "
+            "technical role supporting AI or data systems, document a backup and a development "
+            "pathway. Single-person dependencies are a systemic risk.",
+            "Commission or conduct external benchmarking of your organisational capacity against "
+            "two or three peer institutions. Internal self-assessment is subject to blind spots "
+            "that only external reference points can reveal.",
+            "Formalise a feedback loop from operational staff to AI strategy: create a structured "
+            "mechanism (survey, working group, or forum) for frontline users of AI tools to "
+            "report friction, errors, and concerns upward to decision-makers.",
+        ],
+    },
+    "p4": {
+        "low": [
+            "Add a bias awareness question to your AI procurement checklist as an immediate "
+            "interim measure: for any AI tool, ask the vendor to state what training data was "
+            "used and whether bias testing was conducted. The question itself signals "
+            "institutional intent even before a formal process exists.",
+            "Identify who in the institution would handle a complaint from a student or parent "
+            "who believed an AI-assisted decision was unfair. If there is no answer, creating "
+            "one is the single highest-priority ethics action at this stage.",
+            "Add a plain-language description of how each AI tool in current use makes its "
+            "outputs, accessible to all staff who use those outputs. This does not require "
+            "technical expertise — it requires that someone who understands it writes it down "
+            "for those who do not.",
+        ],
+        "mid": [
+            "Formalise a bias assessment process for AI tool procurement: require vendors to "
+            "provide demographic breakdown of training data and results of any bias testing. "
+            "Document the assessment and its outcome in the procurement record.",
+            "Develop a structured consultation process for AI policy development that includes "
+            "at least one student representative, one frontline teaching staff member, and one "
+            "parent or community voice. Consultative legitimacy at this tier is more about "
+            "structure than scale.",
+            "Review whether equity impact assessment is applied consistently across all AI "
+            "deployments — not just flagship projects. Equity gaps most frequently appear in "
+            "secondary deployments that did not receive the same scrutiny as initial rollouts.",
+        ],
+        "high": [
+            "Establish a standing ethics review body — even a lightweight quarterly meeting "
+            "with a documented remit — that has explicit authority to pause or modify an AI "
+            "implementation on ethical grounds. Authority without a process is unenforceable.",
+            "Implement post-deployment bias monitoring for all AI tools that produce outputs "
+            "affecting students: track whether outcomes differ systematically by gender, "
+            "geography, disability status, or socioeconomic background, and review quarterly.",
+            "Engage with sector-level AI ethics networks (UNESCO, continental or national "
+            "bodies) and share your institution's ethics practice externally. Mature ethics "
+            "infrastructure is characterised by contribution to collective norms, not only "
+            "internal compliance.",
+        ],
+    },
+}
 
 
 # ---------------------------------------------------------------------------

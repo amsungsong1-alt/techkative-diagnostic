@@ -5,9 +5,11 @@ Entry point. Initialises session state, injects CSS, and routes to the
 correct screen based on st.session_state.screen.
 """
 
+import json
 import os
 from pathlib import Path
 
+import plotly.graph_objects as go
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -16,7 +18,7 @@ import styles
 from email_service import send_all
 from framework import INSTITUTION_TYPES, PILLARS, PILLAR_ORDER, all_item_ids, get_pillar
 from report import build_report
-from scoring import compute_score_summary, generate_observations
+from scoring import compute_score_summary, generate_observations, generate_roadmap
 
 load_dotenv()
 
@@ -170,6 +172,33 @@ def screen_welcome():
         if st.button("Begin the Diagnostic →", type="primary", use_container_width=True):
             state.go("profile")
 
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        f'<p style="font-size:12px;color:{styles.MUTED};margin-bottom:6px;">'
+        "Returning user? Upload a previously saved draft to resume where you left off."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    uploaded = st.file_uploader(
+        "Upload saved draft",
+        type=["json"],
+        key="draft_uploader",
+        label_visibility="collapsed",
+    )
+    if uploaded is not None:
+        try:
+            payload = json.loads(uploaded.read().decode("utf-8"))
+            if state.load_draft_payload(payload):
+                st.success("Draft loaded. Resuming your assessment.")
+                state.go("assessment")
+            else:
+                st.error(
+                    "This file does not appear to be a valid Tech-Kative diagnostic draft. "
+                    "Please check you have uploaded the correct file."
+                )
+        except Exception:
+            st.error("Could not read the uploaded file. Please ensure it is a valid JSON draft.")
+
     _footer()
 
 
@@ -198,12 +227,23 @@ def screen_profile():
     st.markdown("<br>", unsafe_allow_html=True)
 
     prof = state.get_profile()
+    field_errors = st.session_state.get("profile_errors", {})
+
+    def _field_error(key: str):
+        msg = field_errors.get(key)
+        if msg:
+            st.markdown(
+                f'<p style="color:#c0392b;font-size:13px;margin-top:-10px;margin-bottom:8px;">'
+                f"{msg}</p>",
+                unsafe_allow_html=True,
+            )
 
     institution_name = st.text_input(
         "Institution name *",
         value=prof.get("institution_name", ""),
         placeholder="e.g. Lagos State University",
     )
+    _field_error("institution_name")
 
     institution_type = st.selectbox(
         "Institution type *",
@@ -214,6 +254,7 @@ def screen_profile():
             else 0
         ),
     )
+    _field_error("institution_type")
 
     country = st.text_input(
         "Country",
@@ -232,6 +273,7 @@ def screen_profile():
         value=prof.get("contact_email", ""),
         placeholder="your.name@institution.edu",
     )
+    _field_error("contact_email")
 
     role = st.text_input(
         "Your role",
@@ -245,6 +287,7 @@ def screen_profile():
 
     with col_back:
         if st.button("← Back", type="secondary", use_container_width=True):
+            st.session_state.profile_errors = {}
             state.go("welcome")
 
     with col_fwd:
@@ -253,20 +296,19 @@ def screen_profile():
         )
 
     if proceed:
-        errors = []
+        new_errors = {}
         if not institution_name.strip():
-            errors.append("Institution name is required.")
+            new_errors["institution_name"] = "Institution name is required."
         if institution_type == "— Select —":
-            errors.append("Please select an institution type.")
+            new_errors["institution_type"] = "Please select an institution type."
         if not contact_email.strip():
-            errors.append("Email address is required.")
+            new_errors["contact_email"] = "Email address is required."
         elif "@" not in contact_email or "." not in contact_email.split("@")[-1]:
-            errors.append("Please enter a valid email address.")
+            new_errors["contact_email"] = "Please enter a valid email address."
 
-        if errors:
-            for err in errors:
-                st.error(err)
-        else:
+        st.session_state.profile_errors = new_errors
+
+        if not new_errors:
             state.set_profile(
                 {
                     "institution_name": institution_name.strip(),
@@ -278,6 +320,8 @@ def screen_profile():
                 }
             )
             state.go("assessment")
+        else:
+            st.rerun()
 
     _footer()
 
@@ -300,8 +344,10 @@ def screen_assessment():
     st.progress(answered / TOTAL_ITEMS)
     st.markdown(
         f'<p style="font-size:12px;color:{styles.MUTED};margin-top:4px;">'
-        f"Item {item_index + 1} of {TOTAL_ITEMS} &nbsp;·&nbsp; "
-        f"{answered} answered</p>",
+        f'<strong>{answered}</strong> of {TOTAL_ITEMS} items answered'
+        f' &nbsp;·&nbsp; Item {item_index + 1} of {TOTAL_ITEMS}'
+        f' &nbsp;·&nbsp; Pillar: {pillar["name"]}'
+        f"</p>",
         unsafe_allow_html=True,
     )
 
@@ -366,6 +412,18 @@ def screen_assessment():
         else:
             state.set_item_index(item_index - 1)
             st.rerun()
+
+    # ── Save Draft ────────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    draft_json = json.dumps(state.build_draft_payload(), ensure_ascii=False, indent=2)
+    st.download_button(
+        label="Save Draft (.json)",
+        data=draft_json.encode("utf-8"),
+        file_name="techkative-diagnostic-draft.json",
+        mime="application/json",
+        type="secondary",
+        help="Download your progress and resume later by uploading this file on the welcome screen.",
+    )
 
     _footer()
 
@@ -462,6 +520,87 @@ def screen_review():
 
 
 # ---------------------------------------------------------------------------
+# Results helpers
+# ---------------------------------------------------------------------------
+
+def _render_radar(scores: dict) -> None:
+    p = scores["pillar_scores"]
+    labels = [get_pillar(pid)["short_name"] for pid in PILLAR_ORDER]
+    values = [p[pid] for pid in PILLAR_ORDER]
+    closed_labels = labels + [labels[0]]
+    closed_values = values + [values[0]]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(
+        r=closed_values,
+        theta=closed_labels,
+        fill="toself",
+        fillcolor="rgba(139,63,184,0.15)",
+        line=dict(color=styles.PRIMARY, width=2),
+        hovertemplate="%{theta}: %{r:.0f}<extra></extra>",
+    ))
+    fig.update_layout(
+        polar=dict(
+            bgcolor="rgba(250,245,253,0.8)",
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                tickfont=dict(size=10, color=styles.MUTED),
+                gridcolor=styles.BORDER,
+                linecolor=styles.BORDER,
+            ),
+            angularaxis=dict(
+                tickfont=dict(size=12, color=styles.SLATE),
+                gridcolor=styles.BORDER,
+                linecolor=styles.BORDER,
+            ),
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=40, r=40, t=40, b=40),
+        height=340,
+        showlegend=False,
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+_ROADMAP_BAND_LABELS = {"low": "Foundation-building", "mid": "Consolidating", "high": "Advancing"}
+
+
+def _render_roadmap(roadmap: dict) -> None:
+    st.markdown("### Recommended Actions by Pillar")
+    st.markdown(
+        f'<p style="font-size:14px;font-style:italic;color:{styles.MUTED};margin-bottom:16px;">'
+        "The following actions are calibrated to your score in each pillar. "
+        "Select one or two per pillar and complete them before adding more."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    for pid in PILLAR_ORDER:
+        pillar = get_pillar(pid)
+        colour = styles.PILLAR_COLOURS[pid]
+        r = roadmap[pid]
+        band_label = _ROADMAP_BAND_LABELS[r["band"]]
+        st.markdown(
+            f'<div style="margin-bottom:24px;border-left:3px solid {colour};padding-left:16px;">'
+            f'<div style="font-size:12px;font-weight:700;text-transform:uppercase;'
+            f'letter-spacing:0.07em;color:{colour};margin-bottom:6px;">'
+            f'{pillar["name"]} &nbsp;·&nbsp; Score {r["score"]:.0f} &nbsp;·&nbsp; {band_label}'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        for i, action in enumerate(r["items"], start=1):
+            st.markdown(
+                f'<div style="padding:10px 14px;background:{styles.WASH};border-radius:6px;'
+                f'margin-bottom:8px;font-size:13px;line-height:1.65;color:{styles.SLATE};">'
+                f'<strong style="color:{colour};">{i}.</strong> {action}'
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
 # Screen 5 — Results
 # ---------------------------------------------------------------------------
 
@@ -470,21 +609,26 @@ def screen_results():
 
     # ── Compute on first render only ──────────────────────────────────────
     if state.get_scores() is None:
-        responses    = st.session_state.responses
-        scores       = compute_score_summary(responses)
-        observations = generate_observations(scores)
-        report_html  = build_report(
-            profile=state.get_profile(),
-            scores=scores,
-            observations=observations,
-            responses=responses,
-        )
-        state.set_scores(scores)
-        state.set_observations(observations)
-        state.set_report_html(report_html)
+        with st.spinner("Computing your readiness profile…"):
+            responses    = st.session_state.responses
+            scores       = compute_score_summary(responses)
+            observations = generate_observations(scores)
+            roadmap      = generate_roadmap(scores)
+            report_html  = build_report(
+                profile=state.get_profile(),
+                scores=scores,
+                observations=observations,
+                responses=responses,
+                roadmap=roadmap,
+            )
+            state.set_scores(scores)
+            state.set_observations(observations)
+            state.set_roadmap(roadmap)
+            state.set_report_html(report_html)
 
     scores       = state.get_scores()
     observations = state.get_observations()
+    roadmap      = state.get_roadmap()
     profile      = state.get_profile()
     report_html  = state.get_report_html()
 
@@ -533,6 +677,10 @@ def screen_results():
                 unsafe_allow_html=True,
             )
 
+    # ── Radar chart ───────────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    _render_radar(scores)
+
     st.markdown("---")
 
     # ── Narrative observations ────────────────────────────────────────────
@@ -548,6 +696,11 @@ def screen_results():
             f'<div class="obs-card">{obs}</div>',
             unsafe_allow_html=True,
         )
+
+    # ── Per-pillar roadmap ────────────────────────────────────────────────
+    if roadmap:
+        st.markdown("---")
+        _render_roadmap(roadmap)
 
     st.markdown("---")
 

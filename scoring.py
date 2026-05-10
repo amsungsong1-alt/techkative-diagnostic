@@ -12,11 +12,37 @@ from framework import (
     PILLARS,
     PILLAR_ORDER,
     OBSERVATION_RULES,
+    PILLAR_ROADMAPS,
     SCORE_SCALE_FACTOR,
     get_pillar,
     get_tier,
     items_for_pillar,
 )
+
+# Leverage text for R6 — resolved by highest pillar key
+_LEVERAGE_TEXT = {
+    "p1": (
+        "governance discipline applied to data policies can be extended to include "
+        "data quality standards and ownership assignments — converting policy "
+        "infrastructure into data management infrastructure."
+    ),
+    "p2": (
+        "data quality and standardisation practices can inform the evidence base "
+        "for AI procurement decisions and provide the substrate evidence that "
+        "ethics review processes need to assess bias and representativeness."
+    ),
+    "p3": (
+        "organisational change management capability can be applied to ethics "
+        "policy rollout and data governance adoption — turning procedural "
+        "capacity into governance reach."
+    ),
+    "p4": (
+        "ethical review disciplines — bias assessment, recourse path design, "
+        "stakeholder consultation — can be extended to govern data quality "
+        "decisions and AI procurement criteria, embedding ethics at the "
+        "front end of the procurement cycle."
+    ),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -100,9 +126,37 @@ def compute_score_summary(responses: dict) -> dict:
 # Observation rule engine
 # ---------------------------------------------------------------------------
 
+def generate_roadmap(scores: dict) -> dict:
+    """
+    Return per-pillar actionable roadmap items based on score band.
+
+    Args:
+        scores: output of compute_score_summary()
+
+    Returns:
+        {p1..p4: {"band": "low"|"mid"|"high", "score": float, "items": list[str]}}
+    """
+    p = scores["pillar_scores"]
+    roadmap = {}
+    for pid in PILLAR_ORDER:
+        score = p[pid]
+        if score < 50:
+            band = "low"
+        elif score < 75:
+            band = "mid"
+        else:
+            band = "high"
+        roadmap[pid] = {
+            "band": band,
+            "score": score,
+            "items": PILLAR_ROADMAPS[pid][band],
+        }
+    return roadmap
+
+
 def generate_observations(scores: dict) -> list:
     """
-    Deterministic rule engine. Evaluates R1–R5 in order.
+    Deterministic rule engine. Evaluates R1–R6 in order.
     Always returns 2–4 observation strings.
 
     Rules:
@@ -111,6 +165,7 @@ def generate_observations(scores: dict) -> list:
         R3 — p1 - p4 >= 20 (ethics below governance)
         R4 — p3 is lowest AND composite >= 50 AND composite - p3 >= 15
         R5 — forced fallback when R2/R3/R4 all miss; also fires when spread < 15
+        R6 — highest pillar >= 70 AND spread >= 20 (leverage strongest pillar)
     """
     p = scores["pillar_scores"]
     composite = scores["composite"]
@@ -154,6 +209,7 @@ def generate_observations(scores: dict) -> list:
             r3["template"].format(
                 P4_SCORE=f"{p['p4']:.0f}",
                 P1_SCORE=f"{p['p1']:.0f}",
+                P1_MINUS_P4=f"{p['p1'] - p['p4']:.0f}",
             )
         )
         r3_fired = True
@@ -185,6 +241,20 @@ def generate_observations(scores: dict) -> list:
                 SPREAD=f"{spread:.0f}",
                 COMPOSITE=f"{composite:.0f}",
                 TIER=tier,
+            )
+        )
+
+    # R6 — highest pillar as cross-pillar leverage point
+    r6 = OBSERVATION_RULES[5]
+    highest_key = scores["highest_pillar_key"]
+    if p[highest_key] >= 70 and spread >= 20 and len(observations) < 4:
+        highest_pillar = get_pillar(highest_key)
+        observations.append(
+            r6["template"].format(
+                HIGHEST_PILLAR_NAME=highest_pillar["name"],
+                HIGHEST_PILLAR_SCORE=f"{p[highest_key]:.0f}",
+                HIGHEST_PILLAR_SHORT=highest_pillar["short_name"],
+                HIGHEST_PILLAR_LEVERAGE_TEXT=_LEVERAGE_TEXT[highest_key],
             )
         )
 

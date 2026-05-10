@@ -36,8 +36,11 @@ def init() -> None:
         "responses":     {},   # {item_id: int 1–5}
         "scores":        None, # set after assessment completion
         "observations":  None, # list[str], set with scores
+        "roadmap":       None, # dict, set with scores
         "email_sent":    False,
         "report_html":   None, # str, cached for download
+        "draft_loaded":  False,
+        "profile_errors": {},  # {field_key: error_message} for inline validation
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -124,6 +127,14 @@ def set_observations(observations: list) -> None:
     st.session_state.observations = observations
 
 
+def get_roadmap():
+    return st.session_state.roadmap
+
+
+def set_roadmap(roadmap: dict) -> None:
+    st.session_state.roadmap = roadmap
+
+
 # ---------------------------------------------------------------------------
 # Report HTML (cached for download button)
 # ---------------------------------------------------------------------------
@@ -158,3 +169,43 @@ def current_item_index() -> int:
 
 def set_item_index(index: int) -> None:
     st.session_state.item_index = index
+
+
+# ---------------------------------------------------------------------------
+# Draft save / load
+# ---------------------------------------------------------------------------
+
+def build_draft_payload() -> dict:
+    """Serialise current progress for download as a JSON draft file."""
+    return {
+        "version": 1,
+        "item_index": st.session_state.item_index,
+        "responses": st.session_state.responses,
+        "profile": st.session_state.profile,
+    }
+
+
+def load_draft_payload(payload: dict) -> bool:
+    """
+    Load a previously saved draft into session state.
+    Returns True if valid and applied, False otherwise.
+    """
+    if not isinstance(payload, dict):
+        return False
+    if payload.get("version") != 1:
+        return False
+    responses = payload.get("responses", {})
+    if not isinstance(responses, dict):
+        return False
+    for v in responses.values():
+        if not isinstance(v, int) or v < 1 or v > 5:
+            return False
+    item_index = payload.get("item_index", 0)
+    if not isinstance(item_index, int) or item_index < 0:
+        return False
+    st.session_state.responses = responses
+    st.session_state.item_index = item_index
+    if isinstance(payload.get("profile"), dict):
+        st.session_state.profile = payload["profile"]
+    st.session_state.draft_loaded = True
+    return True

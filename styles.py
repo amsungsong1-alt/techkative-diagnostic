@@ -406,6 +406,51 @@ hr {{
   border-radius: 6px !important;
   font-size: 14px !important;
 }}
+
+/* ── Radio labels: wrap cleanly at all widths ────────────────────────── */
+[data-testid="stRadio"] label {{
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}}
+
+/* ── Mobile responsive (@640px) ─────────────────────────────────────── */
+@media (max-width: 640px) {{
+  .block-container {{
+    padding: 0 12px 80px !important;
+  }}
+
+  [data-testid="stRadio"] label {{
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }}
+
+  .stButton > button {{
+    min-height: 44px !important;
+    font-size: 13px !important;
+    padding: 12px 16px !important;
+  }}
+
+  [data-testid="column"] {{
+    min-width: 100% !important;
+  }}
+
+  .tier-score-big {{
+    font-size: 40px !important;
+  }}
+
+  .tier-banner {{
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding: 20px !important;
+  }}
+
+  .tk-header {{
+    padding: 12px 16px !important;
+    margin: 0 -12px 20px !important;
+  }}
+}}
 </style>
 """
 

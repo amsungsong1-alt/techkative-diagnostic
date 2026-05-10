@@ -9,10 +9,11 @@ Public API:
     build_report(profile, scores, observations, responses) -> str
 """
 
+import math
 from datetime import date
 from html import escape
 
-from framework import PILLARS, PILLAR_COLOURS, get_pillar
+from framework import PILLARS, PILLAR_COLOURS, PILLAR_ORDER, get_pillar
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +117,115 @@ def _profile_rows(profile: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Radar / spider chart (pure SVG — no JS, email-safe)
+# ---------------------------------------------------------------------------
+
+def _radar_svg(pillar_scores: dict) -> str:
+    W, H = 280, 280
+    cx, cy = W // 2, H // 2
+    r_max = 100
+    pids = ["p1", "p2", "p3", "p4"]
+    colours = [_PRIMARY, _NAVY, _GREEN, _AMBER]
+    short_labels = ["Governance", "Data", "Capacity", "Ethics"]
+    n = len(pids)
+    # Angles: start top, go clockwise
+    angles = [math.pi / 2 - i * (2 * math.pi / n) for i in range(n)]
+
+    def pt(angle, frac):
+        x = cx + r_max * frac * math.cos(angle)
+        y = cy - r_max * frac * math.sin(angle)
+        return x, y
+
+    # Grid rings at 25/50/75/100
+    grid = ""
+    for frac in [0.25, 0.5, 0.75, 1.0]:
+        pts = " ".join(f"{pt(a, frac)[0]:.1f},{pt(a, frac)[1]:.1f}" for a in angles)
+        opacity = "0.4" if frac < 1.0 else "0.7"
+        grid += f'<polygon points="{pts}" fill="none" stroke="{_BORDER}" stroke-width="1" opacity="{opacity}"/>\n'
+
+    # Axis lines
+    axes = ""
+    for angle in angles:
+        x, y = pt(angle, 1.0)
+        axes += f'<line x1="{cx}" y1="{cy}" x2="{x:.1f}" y2="{y:.1f}" stroke="{_BORDER}" stroke-width="1"/>\n'
+
+    # Data polygon
+    raw = []
+    for pid, angle in zip(pids, angles):
+        frac = min(1.0, max(0.0, pillar_scores.get(pid, 0) / 100))
+        raw.append(pt(angle, frac))
+    data_pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in raw)
+    data = (
+        f'<polygon points="{data_pts}" '
+        f'fill="rgba(139,63,184,0.18)" stroke="{_PRIMARY}" stroke-width="2"/>\n'
+    )
+
+    # Dots at data points
+    dots = ""
+    for pid, angle, colour in zip(pids, angles, colours):
+        frac = min(1.0, max(0.0, pillar_scores.get(pid, 0) / 100))
+        x, y = pt(angle, frac)
+        dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{colour}"/>\n'
+
+    # Labels (offset beyond r_max)
+    label_offset = 1.28
+    labels = ""
+    for label, angle, colour, pid in zip(short_labels, angles, colours, pids):
+        lx, ly = pt(angle, label_offset)
+        score_val = int(round(pillar_scores.get(pid, 0)))
+        if math.cos(angle) > 0.2:
+            anchor = "start"
+        elif math.cos(angle) < -0.2:
+            anchor = "end"
+        else:
+            anchor = "middle"
+        labels += (
+            f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" '
+            f'font-family="-apple-system,sans-serif" font-size="11" '
+            f'fill="{colour}" font-weight="700">{label} {score_val}</text>\n'
+        )
+
+    return (
+        f'<svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
+        f'xmlns="http://www.w3.org/2000/svg">\n'
+        f'{grid}{axes}{data}{dots}{labels}'
+        f'</svg>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Per-pillar roadmap section
+# ---------------------------------------------------------------------------
+
+_BAND_LABELS = {"low": "Foundation-building", "mid": "Consolidating", "high": "Advancing"}
+
+
+def _roadmap_section(roadmap: dict) -> str:
+    if not roadmap:
+        return ""
+    html = ""
+    for pid in PILLAR_ORDER:
+        pillar = get_pillar(pid)
+        colour = _PILLAR_TILE_COLOURS[pid]
+        r = roadmap[pid]
+        band_label = _BAND_LABELS.get(r["band"], r["band"])
+        html += f"""
+        <div style="margin-bottom:28px;border-left:3px solid {colour};padding-left:16px;">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;
+                      letter-spacing:0.07em;color:{colour};margin-bottom:10px;">
+            {_h(pillar['name'])} &nbsp;&middot;&nbsp; Score {r['score']:.0f} &nbsp;&middot;&nbsp; {_h(band_label)}
+          </div>"""
+        for i, action in enumerate(r["items"], start=1):
+            html += f"""
+          <div style="padding:12px 16px;background:{_WASH};border-radius:6px;
+                      margin-bottom:8px;font-size:13px;line-height:1.65;color:{_SLATE};">
+            <strong style="color:{colour};">{i}.</strong> {_h(action)}
+          </div>"""
+        html += "\n        </div>"
+    return html
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -124,6 +234,7 @@ def build_report(
     scores: dict,
     observations: list,
     responses: dict,
+    roadmap: dict = None,
 ) -> str:
     """
     Build and return a self-contained HTML report string.
@@ -132,7 +243,8 @@ def build_report(
         profile:      institutional profile dict from session state
         scores:       output of scoring.compute_score_summary()
         observations: output of scoring.generate_observations()
-        responses:    raw item_id → score dict (unused in HTML but retained for future use)
+        responses:    raw item_id → score dict
+        roadmap:      output of scoring.generate_roadmap() (optional)
 
     Returns:
         Complete HTML document as a string.
@@ -148,6 +260,12 @@ def build_report(
     tiles_html = ""
     for pid in ["p1", "p2", "p3", "p4"]:
         tiles_html += _pillar_tile(pid, pillar_scrs[pid])
+
+    # Radar SVG
+    radar_svg = _radar_svg(pillar_scrs)
+
+    # Roadmap HTML (conditional)
+    roadmap_html = _roadmap_section(roadmap) if roadmap else ""
 
     # Pillar detail rows (for the response summary section)
     pillar_details = ""
@@ -359,6 +477,17 @@ def build_report(
     <div class="section-label">Profile Observations</div>
     {_observation_block(observations)}
   </div>
+
+  <!-- Radar chart -->
+  <div class="section">
+    <div class="section-label">Readiness Profile — Radar View</div>
+    <div style="display:flex;justify-content:center;padding:8px 0;">
+      {radar_svg}
+    </div>
+  </div>
+
+  <!-- Recommended actions by pillar -->
+  {'<div class="section"><div class="section-label">Recommended Actions by Pillar</div>' + roadmap_html + '</div>' if roadmap_html else ''}
 
   <!-- Stage 2 -->
   <div class="section">

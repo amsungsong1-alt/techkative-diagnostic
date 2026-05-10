@@ -140,10 +140,10 @@ class TestR3EthicsBelowGovernance:
         # No R3; R5 should fire instead (balanced)
         assert not any("Ethical Infrastructure" in o and "Governance & Policy" in o for o in obs)
 
-    def test_r3_mentions_operationalisation(self):
+    def test_r3_mentions_institutional_machinery(self):
         obs = observations_for(self._r3_score_map())
         r3 = next(o for o in obs if "Ethical Infrastructure" in o and "Governance & Policy" in o)
-        assert "operationalised" in r3
+        assert "machinery" in r3
 
 
 # ---------------------------------------------------------------------------
