@@ -30,10 +30,10 @@ PILLAR_COLOURS = {
 }
 
 TIER_COLOURS = {
-    "Pre-foundational": AMBER,
-    "Foundational":     PRIMARY,
-    "Developing":       GREEN,
-    "Mature":           NAVY,
+    "Emerging":    AMBER,
+    "Developing":  PRIMARY,
+    "Established": GREEN,
+    "Leading":     NAVY,
 }
 
 # ---------------------------------------------------------------------------

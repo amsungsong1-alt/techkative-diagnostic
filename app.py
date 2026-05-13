@@ -1,5 +1,5 @@
 """
-Tech-Kative AI-Readiness Diagnostic — Main Application
+Tech-Kative AI-Readiness Diagnostic v2 — Main Application
 
 Entry point. Initialises session state, injects CSS, and routes to the
 correct screen based on st.session_state.screen.
@@ -7,30 +7,41 @@ correct screen based on st.session_state.screen.
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 import plotly.graph_objects as go
 import streamlit as st
 from dotenv import load_dotenv
 
+import db
 import state
 import styles
 from email_service import send_all
-from framework import INSTITUTION_TYPES, PILLARS, PILLAR_ORDER, all_item_ids, get_pillar
+from framework import (
+    COUNTRY_OPTIONS,
+    INSTITUTION_TYPES,
+    PILOT_CODES,
+    PILLARS,
+    PILLAR_ORDER,
+    PRIVACY_NOTICE_PARAGRAPHS,
+    FOUR_OPTION_LIKERT,
+    YES_NO_OPTIONS,
+    get_pillar,
+    get_questions_for_user,
+    get_scored_questions,
+)
 from report import build_report
-from scoring import compute_score_summary, generate_observations, generate_roadmap
+from scoring import (
+    compute_score_summary,
+    generate_recommendations,
+    generate_regulatory_flags,
+)
 
 load_dotenv()
 
 
 def _load_streamlit_secrets():
-    """
-    Bridge st.secrets → os.environ so email_service.py stays Streamlit-free.
-    On Streamlit Community Cloud, credentials live in st.secrets (configured
-    in the Cloud dashboard). Locally they live in .env / os.environ.
-    This function copies any missing vars from st.secrets without overwriting
-    anything already set by .env.
-    """
     _KEYS = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS",
              "FROM_ADDRESS", "TECHKATIVE_INBOX"]
     try:
@@ -38,11 +49,11 @@ def _load_streamlit_secrets():
             if key not in os.environ and hasattr(st, "secrets") and key in st.secrets:
                 os.environ[key] = str(st.secrets[key])
     except Exception:
-        pass  # st.secrets not available (e.g. bare import during tests)
+        pass
 
 
 # ---------------------------------------------------------------------------
-# Page configuration (must be first Streamlit call)
+# Page configuration
 # ---------------------------------------------------------------------------
 
 st.set_page_config(
@@ -52,17 +63,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ---------------------------------------------------------------------------
-# Global setup
-# ---------------------------------------------------------------------------
-
 styles.inject_styles()
 state.init()
 _load_streamlit_secrets()
-
-# Flat ordered list of all 24 items
-ALL_ITEMS = [item for pillar in PILLARS for item in pillar["items"]]
-TOTAL_ITEMS = len(ALL_ITEMS)
 
 _LOGO = Path("assets/logo.png")
 
@@ -95,11 +98,26 @@ def _header():
 def _footer():
     st.markdown(
         f'<div class="tk-footer">'
-        f'<span>Tech-Kative · AI-Readiness Diagnostic</span>'
+        f'<span>Tech-Kative · AI-Readiness Diagnostic v2 · info@techkative.com</span>'
         f'<span>AI readiness. African context.</span>'
         f"</div>",
         unsafe_allow_html=True,
     )
+
+
+def _pilot_banner():
+    if state.is_pilot_mode():
+        phase = state.get_assessment_phase()
+        code  = state.get_pilot_code()
+        st.markdown(
+            f'<div style="background:#e8f4e8;border-left:4px solid {styles.GREEN};'
+            f'padding:8px 16px;margin-bottom:16px;border-radius:0 4px 4px 0;'
+            f'font-size:13px;color:{styles.NAVY};">'
+            f'Pilot Mode: Tech-Kative × Standbasis Joint Pilot (June – July 2026)'
+            f' &nbsp;·&nbsp; {phase} &nbsp;·&nbsp; Code: {code}'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def _pillar_pill(pillar: dict):
@@ -143,13 +161,12 @@ def screen_welcome():
         "</p>",
         unsafe_allow_html=True,
     )
-
     st.markdown(
         f'<p style="font-size:14px;color:{styles.SLATE};line-height:1.7;">'
-        "This diagnostic assesses your institution across four pillars — 24 items in total. "
-        "Each item is calibrated against current practice, not aspiration. "
-        "Allow approximately <strong>25 minutes</strong> of uninterrupted time. "
-        "Your responses are not stored on our servers; your completed profile is delivered by email."
+        "This diagnostic assesses your institution across four pillars. "
+        "Each question is calibrated against current practice, not aspiration. "
+        "Allow approximately <strong>20 minutes</strong> of uninterrupted time. "
+        "Your completed profile is delivered as a downloadable HTML report."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -170,7 +187,7 @@ def screen_welcome():
     col_cta, col_space = st.columns([2, 3])
     with col_cta:
         if st.button("Begin the Diagnostic →", type="primary", use_container_width=True):
-            state.go("profile")
+            state.go("consent")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
@@ -193,8 +210,7 @@ def screen_welcome():
                 state.go("assessment")
             else:
                 st.error(
-                    "This file does not appear to be a valid Tech-Kative diagnostic draft. "
-                    "Please check you have uploaded the correct file."
+                    "This file does not appear to be a valid Tech-Kative diagnostic draft."
                 )
         except Exception:
             st.error("Could not read the uploaded file. Please ensure it is a valid JSON draft.")
@@ -203,11 +219,55 @@ def screen_welcome():
 
 
 # ---------------------------------------------------------------------------
-# Screen 2 — Institutional Profile
+# Screen 2 — Consent / Privacy Notice
+# ---------------------------------------------------------------------------
+
+def screen_consent():
+    _header()
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    st.markdown(
+        f'<p style="font-size:12px;font-weight:700;letter-spacing:0.1em;'
+        f'text-transform:uppercase;color:{styles.PRIMARY};">Privacy Notice</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("## About this Diagnostic")
+
+    for para in PRIVACY_NOTICE_PARAGRAPHS:
+        st.markdown(para)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    agreed = st.checkbox(
+        "I have read and accept the above, and confirm I have authority to complete "
+        "this diagnostic on behalf of my institution."
+    )
+
+    col_back, col_proceed = st.columns([1, 2])
+    with col_back:
+        if st.button("← Back", type="secondary", use_container_width=True):
+            state.go("welcome")
+    with col_proceed:
+        if st.button(
+            "Proceed to Diagnostic →",
+            type="primary",
+            use_container_width=True,
+            disabled=not agreed,
+        ):
+            state.set_consent(datetime.now(timezone.utc).isoformat())
+            state.go("profile")
+
+    _footer()
+
+
+# ---------------------------------------------------------------------------
+# Screen 3 — Institutional Profile
 # ---------------------------------------------------------------------------
 
 def screen_profile():
     _header()
+    _pilot_banner()
     st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(
@@ -218,8 +278,8 @@ def screen_profile():
     st.markdown("## Institutional Profile")
     st.markdown(
         f'<p style="font-size:14px;font-style:italic;color:{styles.MUTED};line-height:1.7;">'
-        "This information is used to personalise your report and to contact you "
-        "with your results. Institution name and email address are required."
+        "This information is used to personalise your report. "
+        "Institution name, country, and email address are required."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -241,7 +301,7 @@ def screen_profile():
     institution_name = st.text_input(
         "Institution name *",
         value=prof.get("institution_name", ""),
-        placeholder="e.g. Lagos State University",
+        placeholder="e.g. Accra Girls' Senior High School",
     )
     _field_error("institution_name")
 
@@ -256,11 +316,19 @@ def screen_profile():
     )
     _field_error("institution_type")
 
-    country = st.text_input(
-        "Country",
-        value=prof.get("country", ""),
-        placeholder="e.g. Nigeria",
+    # Country as selectbox (needed for conditional question logic)
+    current_country = prof.get("country", "")
+    country_index = (
+        COUNTRY_OPTIONS.index(current_country) + 1
+        if current_country in COUNTRY_OPTIONS
+        else 0
     )
+    country = st.selectbox(
+        "Country *",
+        options=["— Select —"] + COUNTRY_OPTIONS,
+        index=country_index,
+    )
+    _field_error("country")
 
     contact_name = st.text_input(
         "Your name",
@@ -278,18 +346,44 @@ def screen_profile():
     role = st.text_input(
         "Your role",
         value=prof.get("role", ""),
-        placeholder="e.g. Deputy Vice-Chancellor (Academic)",
+        placeholder="e.g. Deputy Headteacher",
     )
+
+    # Pilot code section
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        f'<p style="font-size:12px;font-weight:700;letter-spacing:0.08em;'
+        f'text-transform:uppercase;color:{styles.MUTED};">Pilot participants only</p>',
+        unsafe_allow_html=True,
+    )
+    pilot_code_input = st.text_input(
+        "Pilot code (if applicable)",
+        value=state.get_pilot_code(),
+        placeholder="Enter pilot code provided by Tech-Kative",
+    )
+
+    assessment_phase_input = ""
+    if pilot_code_input.strip().upper() in {c.upper() for c in PILOT_CODES}:
+        st.info(
+            "✓ Pilot Mode: Tech-Kative × Standbasis Joint Pilot (June – July 2026)"
+        )
+        assessment_phase_input = st.selectbox(
+            "Assessment phase *",
+            options=["Baseline (Week 1)", "Post-Pilot (Week 7)"],
+            index=(
+                0
+                if state.get_assessment_phase() in ("", "Baseline (Week 1)")
+                else 1
+            ),
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     col_back, col_fwd = st.columns([1, 2])
-
     with col_back:
         if st.button("← Back", type="secondary", use_container_width=True):
             st.session_state.profile_errors = {}
-            state.go("welcome")
-
+            state.go("consent")
     with col_fwd:
         proceed = st.button(
             "Continue to Assessment →", type="primary", use_container_width=True
@@ -301,6 +395,8 @@ def screen_profile():
             new_errors["institution_name"] = "Institution name is required."
         if institution_type == "— Select —":
             new_errors["institution_type"] = "Please select an institution type."
+        if country == "— Select —":
+            new_errors["country"] = "Please select a country."
         if not contact_email.strip():
             new_errors["contact_email"] = "Email address is required."
         elif "@" not in contact_email or "." not in contact_email.split("@")[-1]:
@@ -309,16 +405,20 @@ def screen_profile():
         st.session_state.profile_errors = new_errors
 
         if not new_errors:
-            state.set_profile(
-                {
-                    "institution_name": institution_name.strip(),
-                    "institution_type": institution_type,
-                    "country":          country.strip(),
-                    "contact_name":     contact_name.strip(),
-                    "contact_email":    contact_email.strip(),
-                    "role":             role.strip(),
-                }
-            )
+            code = pilot_code_input.strip().upper()
+            state.set_pilot_code(code if code in {c.upper() for c in PILOT_CODES} else "")
+            state.set_assessment_phase(assessment_phase_input)
+            state.set_profile({
+                "institution_name":  institution_name.strip(),
+                "institution_type":  institution_type,
+                "country":           country,
+                "contact_name":      contact_name.strip(),
+                "contact_email":     contact_email.strip(),
+                "role":              role.strip(),
+                "pilot_code":        state.get_pilot_code(),
+                "assessment_phase":  state.get_assessment_phase(),
+                "consent_given_at":  state.get_consent(),
+            })
             state.go("assessment")
         else:
             st.rerun()
@@ -327,25 +427,36 @@ def screen_profile():
 
 
 # ---------------------------------------------------------------------------
-# Screen 3 — Assessment (one item per render)
+# Screen 4 — Assessment (one question per render)
 # ---------------------------------------------------------------------------
 
 def screen_assessment():
     _header()
+    _pilot_banner()
 
-    item_index = state.current_item_index()
-    item       = ALL_ITEMS[item_index]
-    item_id    = item["id"]
-    pillar     = get_pillar(item["pillar_id"])
-    colour     = pillar["colour"]
+    country      = state.get_profile().get("country", "")
+    user_qs      = get_questions_for_user(country)
+    scored_qs    = get_scored_questions(country)
+    item_index   = state.current_item_index()
+
+    # Guard: clamp index to valid range
+    if item_index >= len(user_qs):
+        item_index = len(user_qs) - 1
+        state.set_item_index(item_index)
+
+    question = user_qs[item_index]
+    qid      = question["id"]
+    pillar   = get_pillar(question["pillar_id"])
+    colour   = pillar["colour"]
 
     # ── Progress ──────────────────────────────────────────────────────────
-    answered = state.answered_count()
-    st.progress(answered / TOTAL_ITEMS)
+    answered = state.answered_count(country)
+    total    = len(scored_qs)
+    st.progress(answered / total if total else 0)
     st.markdown(
         f'<p style="font-size:12px;color:{styles.MUTED};margin-top:4px;">'
-        f'<strong>{answered}</strong> of {TOTAL_ITEMS} items answered'
-        f' &nbsp;·&nbsp; Item {item_index + 1} of {TOTAL_ITEMS}'
+        f'<strong>{answered}</strong> of {total} scored items answered'
+        f' &nbsp;·&nbsp; Question {item_index + 1} of {len(user_qs)}'
         f' &nbsp;·&nbsp; Pillar: {pillar["name"]}'
         f"</p>",
         unsafe_allow_html=True,
@@ -356,51 +467,74 @@ def screen_assessment():
         f'<span class="pillar-tag" style="background:{colour};">{pillar["name"]}</span>',
         unsafe_allow_html=True,
     )
+    if question["type"] == "open_text":
+        st.markdown(
+            f'<span style="font-size:11px;color:{styles.MUTED};margin-left:8px;">'
+            f"Optional — not scored</span>",
+            unsafe_allow_html=True,
+        )
 
-    # ── Question ──────────────────────────────────────────────────────────
-    st.markdown(f"### {item['question']}")
-    st.markdown(
-        f'<p class="help-text">{item["help_text"]}</p>',
-        unsafe_allow_html=True,
-    )
+    # ── Question text ─────────────────────────────────────────────────────
+    st.markdown(f"### {question['text']}")
 
-    # ── Radio options ─────────────────────────────────────────────────────
-    options = [opt["label"] for opt in item["options"]]
-    stored_score = state.get_response(item_id)
-    stored_index = (stored_score - 1) if stored_score is not None else None
+    # ── Input by type ─────────────────────────────────────────────────────
+    stored = state.get_response(qid)
 
-    selected_label = st.radio(
-        "Select one option:",
-        options=options,
-        index=stored_index,
-        key=f"radio_{item_id}",
-        label_visibility="collapsed",
-    )
+    if question["type"] == "yes_no_partial":
+        options = YES_NO_OPTIONS
+        stored_index = options.index(stored) if stored in options else None
+        selected = st.radio(
+            "Select one option:",
+            options=options,
+            index=stored_index,
+            key=f"radio_{qid}",
+            label_visibility="collapsed",
+        )
+
+    elif question["type"] == "likert":
+        options = FOUR_OPTION_LIKERT
+        stored_index = options.index(stored) if stored in options else None
+        selected = st.radio(
+            "Select one option:",
+            options=options,
+            index=stored_index,
+            key=f"radio_{qid}",
+            label_visibility="collapsed",
+        )
+
+    else:  # open_text
+        selected = st.text_area(
+            "Your response (optional):",
+            value=stored or "",
+            key=f"text_{qid}",
+            height=120,
+            label_visibility="collapsed",
+            placeholder="Type your response here (not scored — for report context only).",
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
 
     # ── Navigation ────────────────────────────────────────────────────────
     col_prev, col_next = st.columns(2)
-
     with col_prev:
         prev_label = "← Previous" if item_index > 0 else "← Back to Profile"
         prev_btn = st.button(prev_label, key="btn_prev", type="secondary", use_container_width=True)
-
     with col_next:
-        next_label = "Continue →" if item_index < TOTAL_ITEMS - 1 else "Review Responses →"
+        is_last = item_index >= len(user_qs) - 1
+        next_label = "Continue →" if not is_last else "Review Responses →"
         next_btn = st.button(next_label, key="btn_next", type="primary", use_container_width=True)
 
     # ── Button handlers ───────────────────────────────────────────────────
     if next_btn:
-        if selected_label is None:
+        is_scored = question["type"] != "open_text"
+        if is_scored and selected is None:
             st.error("Please select one of the options above before continuing.")
         else:
-            score = next(
-                opt["score"] for opt in item["options"] if opt["label"] == selected_label
-            )
-            state.set_response(item_id, score)
-            if item_index + 1 >= TOTAL_ITEMS:
+            # Save (even empty text for open-text)
+            if selected or question["type"] == "open_text":
+                state.set_response(qid, selected)
+            if is_last:
                 state.go("review")
             else:
                 state.set_item_index(item_index + 1)
@@ -429,11 +563,12 @@ def screen_assessment():
 
 
 # ---------------------------------------------------------------------------
-# Screen 4 — Review
+# Screen 5 — Review
 # ---------------------------------------------------------------------------
 
 def screen_review():
     _header()
+    _pilot_banner()
     st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(
@@ -444,42 +579,47 @@ def screen_review():
     st.markdown("## Review Your Responses")
     st.markdown(
         f'<p style="font-size:14px;font-style:italic;color:{styles.MUTED};line-height:1.7;">'
-        "Check your responses below. Select Edit on any item to return to it and change your answer. "
-        "When you are satisfied, submit the assessment to receive your profile."
+        "Check your responses below. Select Edit on any item to change your answer. "
+        "When satisfied, submit the assessment to receive your profile."
         "</p>",
         unsafe_allow_html=True,
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    responses    = st.session_state.responses
-    global_index = 0
+    country  = state.get_profile().get("country", "")
+    user_qs  = get_questions_for_user(country)
+    responses = st.session_state.responses
 
+    global_index = 0
     for pillar in PILLARS:
-        colour = pillar["colour"]
+        colour  = pillar["colour"]
+        pqs     = [q for q in user_qs if q["pillar_id"] == pillar["id"]]
         st.markdown(
             f'<div style="font-size:12px;font-weight:700;text-transform:uppercase;'
             f'letter-spacing:0.07em;color:{colour};margin:20px 0 8px;">'
-            f"{pillar['name']} — {len(pillar['items'])} items</div>",
+            f"{pillar['name']} — {len(pqs)} questions</div>",
             unsafe_allow_html=True,
         )
-
-        for item in pillar["items"]:
-            stored_score = responses.get(item["id"])
-            if stored_score:
-                option_label  = item["options"][stored_score - 1]["label"]
-                answered_flag = f"{stored_score}/5"
+        for q in pqs:
+            stored = responses.get(q["id"])
+            if q["type"] == "open_text":
+                answered_flag = "(optional)"
+                option_label  = stored[:80] + "…" if stored and len(stored) > 80 else (stored or "Not answered")
+            elif stored:
+                answered_flag = "✓"
+                option_label  = stored
             else:
-                option_label  = "Not yet answered"
                 answered_flag = "—"
+                option_label  = "Not yet answered"
 
             col_content, col_edit = st.columns([5, 1])
             with col_content:
                 st.markdown(
                     f'<div style="padding:8px 0;border-bottom:1px solid {styles.BORDER};">'
                     f'<div style="font-size:12px;font-weight:700;color:{styles.MUTED};">'
-                    f"Item {item['id']} &nbsp;·&nbsp; {item['short_label']}"
-                    f' &nbsp;<span style="color:{colour};font-weight:700;">[{answered_flag}]</span>'
+                    f"{q['id']} &nbsp;·&nbsp; "
+                    f'<span style="color:{colour};">[{answered_flag}]</span>'
                     f"</div>"
                     f'<div style="font-size:12px;color:{styles.SLATE};margin-top:3px;">'
                     f"{option_label}"
@@ -487,26 +627,25 @@ def screen_review():
                     unsafe_allow_html=True,
                 )
             with col_edit:
-                if st.button("Edit", key=f"edit_{item['id']}"):
+                if st.button("Edit", key=f"edit_{q['id']}"):
                     state.go_to_item(global_index)
-
             global_index += 1
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    missing = [iid for iid in all_item_ids() if iid not in responses]
+    scored_ids = {q["id"] for q in get_scored_questions(country)}
+    missing = [qid for qid in scored_ids if qid not in responses]
     if missing:
         st.warning(
-            f"{len(missing)} item(s) have not yet been answered. "
-            "Please complete all items before submitting."
+            f"{len(missing)} required item(s) have not been answered. "
+            "Please complete all required items before submitting."
         )
 
     col_back, col_submit = st.columns([1, 2])
     with col_back:
         if st.button("← Back to Assessment", type="secondary", use_container_width=True):
-            state.set_item_index(TOTAL_ITEMS - 1)
+            state.set_item_index(len(user_qs) - 1)
             state.go("assessment")
-
     with col_submit:
         if st.button(
             "Submit Assessment →",
@@ -524,7 +663,7 @@ def screen_review():
 # ---------------------------------------------------------------------------
 
 def _render_radar(scores: dict) -> None:
-    p = scores["pillar_scores"]
+    p      = scores["pillar_scores"]
     labels = [get_pillar(pid)["short_name"] for pid in PILLAR_ORDER]
     values = [p[pid] for pid in PILLAR_ORDER]
     closed_labels = labels + [labels[0]]
@@ -543,16 +682,13 @@ def _render_radar(scores: dict) -> None:
         polar=dict(
             bgcolor="rgba(250,245,253,0.8)",
             radialaxis=dict(
-                visible=True,
-                range=[0, 100],
+                visible=True, range=[0, 100],
                 tickfont=dict(size=10, color=styles.MUTED),
-                gridcolor=styles.BORDER,
-                linecolor=styles.BORDER,
+                gridcolor=styles.BORDER, linecolor=styles.BORDER,
             ),
             angularaxis=dict(
                 tickfont=dict(size=12, color=styles.SLATE),
-                gridcolor=styles.BORDER,
-                linecolor=styles.BORDER,
+                gridcolor=styles.BORDER, linecolor=styles.BORDER,
             ),
         ),
         paper_bgcolor="rgba(0,0,0,0)",
@@ -564,10 +700,13 @@ def _render_radar(scores: dict) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-_ROADMAP_BAND_LABELS = {"low": "Foundation-building", "mid": "Consolidating", "high": "Advancing"}
+_TIER_BAND_LABELS = {
+    "Emerging": "Emerging", "Developing": "Developing",
+    "Established": "Established", "Leading": "Leading",
+}
 
 
-def _render_roadmap(roadmap: dict) -> None:
+def _render_recommendations(recommendations: dict) -> None:
     st.markdown("### Recommended Actions by Pillar")
     st.markdown(
         f'<p style="font-size:14px;font-style:italic;color:{styles.MUTED};margin-bottom:16px;">'
@@ -579,13 +718,13 @@ def _render_roadmap(roadmap: dict) -> None:
     for pid in PILLAR_ORDER:
         pillar = get_pillar(pid)
         colour = styles.PILLAR_COLOURS[pid]
-        r = roadmap[pid]
-        band_label = _ROADMAP_BAND_LABELS[r["band"]]
+        r      = recommendations[pid]
         st.markdown(
             f'<div style="margin-bottom:24px;border-left:3px solid {colour};padding-left:16px;">'
             f'<div style="font-size:12px;font-weight:700;text-transform:uppercase;'
             f'letter-spacing:0.07em;color:{colour};margin-bottom:6px;">'
-            f'{pillar["name"]} &nbsp;·&nbsp; Score {r["score"]:.0f} &nbsp;·&nbsp; {band_label}'
+            f'{pillar["name"]} &nbsp;·&nbsp; Score {r["score"]:.0f}'
+            f' &nbsp;·&nbsp; {r["tier"]}'
             f"</div>",
             unsafe_allow_html=True,
         )
@@ -600,37 +739,71 @@ def _render_roadmap(roadmap: dict) -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
 
+def _render_regulatory_flags(flags: list, country: str) -> None:
+    if not flags:
+        return
+    st.markdown("### Regulatory Compliance Snapshot")
+    st.markdown(
+        f'<p style="font-size:13px;font-style:italic;color:{styles.MUTED};margin-bottom:12px;">'
+        "The following items represent specific regulatory or sovereignty alignment gaps based "
+        "on your responses. These are not legal advice. Refer to Ghana's DPC, Nigeria's NDPC, "
+        "or qualified counsel for binding guidance."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+    for flag in flags:
+        st.markdown(
+            f'<div style="padding:10px 14px;background:#fff8f0;'
+            f'border-left:3px solid {styles.AMBER};border-radius:0 6px 6px 0;'
+            f'margin-bottom:8px;font-size:13px;color:{styles.SLATE};">'
+            f'<strong style="color:{styles.AMBER};">{flag["label"]}</strong>'
+            f' — {flag["description"]}'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+
 # ---------------------------------------------------------------------------
-# Screen 5 — Results
+# Screen 6 — Results
 # ---------------------------------------------------------------------------
 
 def screen_results():
     _header()
+    _pilot_banner()
+
+    country   = state.get_profile().get("country", "")
+    responses = st.session_state.responses
 
     # ── Compute on first render only ──────────────────────────────────────
     if state.get_scores() is None:
         with st.spinner("Computing your readiness profile…"):
-            responses    = st.session_state.responses
-            scores       = compute_score_summary(responses)
-            observations = generate_observations(scores)
-            roadmap      = generate_roadmap(scores)
+            scores       = compute_score_summary(responses, country)
+            recs         = generate_recommendations(scores)
+            flags        = generate_regulatory_flags(responses, country)
             report_html  = build_report(
                 profile=state.get_profile(),
                 scores=scores,
-                observations=observations,
+                recommendations=recs,
                 responses=responses,
-                roadmap=roadmap,
+                regulatory_flags=flags,
             )
             state.set_scores(scores)
-            state.set_observations(observations)
-            state.set_roadmap(roadmap)
+            state.set_recommendations(recs)
+            state.set_regulatory_flags(flags)
             state.set_report_html(report_html)
+            # Persist to Supabase (silent on failure)
+            db.save_assessment(
+                profile=state.get_profile(),
+                scores=scores,
+                flags=flags,
+                responses=responses,
+            )
 
-    scores       = state.get_scores()
-    observations = state.get_observations()
-    roadmap      = state.get_roadmap()
-    profile      = state.get_profile()
-    report_html  = state.get_report_html()
+    scores      = state.get_scores()
+    recs        = state.get_recommendations()
+    flags       = state.get_regulatory_flags()
+    profile     = state.get_profile()
+    report_html = state.get_report_html()
 
     composite = scores["composite"]
     tier      = scores["tier"]
@@ -644,6 +817,7 @@ def screen_results():
     )
 
     # ── Composite tier banner ─────────────────────────────────────────────
+    tier_colour = styles.TIER_COLOURS.get(tier, styles.PRIMARY)
     st.markdown(
         f'<div class="tier-banner">'
         f'<div>'
@@ -666,12 +840,15 @@ def screen_results():
         pillar = get_pillar(pid)
         score  = p[pid]
         colour = styles.PILLAR_COLOURS[pid]
+        ptier  = scores["pillar_tiers"][pid]
         with cols[i]:
             st.markdown(
                 f'<div class="score-tile" style="border-top-color:{colour};">'
                 f'<div class="score-tile-name">{pillar["short_name"]}</div>'
                 f'<div class="score-tile-value">{score:.0f}'
                 f'<span class="score-tile-denom">/100</span></div>'
+                f'<div style="font-size:10px;color:{colour};font-weight:700;margin-top:4px;">'
+                f'{ptier}</div>'
                 + _score_bar_html(score, colour)
                 + "</div>",
                 unsafe_allow_html=True,
@@ -681,28 +858,17 @@ def screen_results():
     st.markdown("<br>", unsafe_allow_html=True)
     _render_radar(scores)
 
-    st.markdown("---")
-
-    # ── Narrative observations ────────────────────────────────────────────
-    st.markdown("### Profile Observations")
-    st.markdown(
-        f'<p style="font-size:14px;font-style:italic;color:{styles.MUTED};margin-bottom:16px;">'
-        "The following observations reflect your specific response pattern."
-        "</p>",
-        unsafe_allow_html=True,
-    )
-    for obs in observations:
-        st.markdown(
-            f'<div class="obs-card">{obs}</div>',
-            unsafe_allow_html=True,
-        )
-
-    # ── Per-pillar roadmap ────────────────────────────────────────────────
-    if roadmap:
+    # ── Regulatory flags ──────────────────────────────────────────────────
+    if flags:
         st.markdown("---")
-        _render_roadmap(roadmap)
+        _render_regulatory_flags(flags, country)
 
     st.markdown("---")
+
+    # ── Recommendations ───────────────────────────────────────────────────
+    if recs:
+        _render_recommendations(recs)
+        st.markdown("---")
 
     # ── Download ──────────────────────────────────────────────────────────
     if report_html:
@@ -742,17 +908,14 @@ def screen_results():
         with st.form("stage2_form", clear_on_submit=False):
             st.markdown(
                 f'<p style="font-size:13px;font-weight:700;color:{styles.SLATE};margin-bottom:4px;">'
-                "Request a Stage 2 conversation</p>",
+                "Send your report and request a Stage 2 conversation</p>",
                 unsafe_allow_html=True,
             )
             s2_name    = st.text_input("Your name",     value=profile.get("contact_name", ""))
             s2_email   = st.text_input("Email address", value=profile.get("contact_email", ""))
             s2_message = st.text_area(
                 "Message (optional)",
-                placeholder=(
-                    "Tell us briefly about your institution's context, "
-                    "current priorities, or any specific questions."
-                ),
+                placeholder="Tell us briefly about your institution's context or questions.",
                 height=100,
             )
             submitted = st.form_submit_button(
@@ -782,11 +945,12 @@ def screen_results():
 
 
 # ---------------------------------------------------------------------------
-# Screen 6 — Email Sent
+# Screen 7 — Email Sent
 # ---------------------------------------------------------------------------
 
 def screen_email_sent():
     _header()
+    _pilot_banner()
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("## Thank you.")
@@ -801,13 +965,11 @@ def screen_email_sent():
     scores  = state.get_scores()
 
     if scores:
-        composite = scores["composite"]
-        tier      = scores["tier"]
         st.markdown(
             f'<p style="font-size:15px;color:{styles.SLATE};line-height:1.7;">'
-            f"Your composite score is <strong>{composite:.0f} / 100</strong>, "
+            f"Your composite score is <strong>{scores['composite']:.0f} / 100</strong>, "
             f"placing <strong>{profile.get('institution_name', 'your institution')}</strong> "
-            f"at the <strong>{tier}</strong> tier."
+            f"at the <strong>{scores['tier']}</strong> tier."
             f"</p>",
             unsafe_allow_html=True,
         )
@@ -819,7 +981,7 @@ def screen_email_sent():
         "What happens next</p>"
         f'<ul style="font-size:14px;color:{styles.MUTED};line-height:1.9;margin:0;padding-left:18px;">'
         f"<li>Your HTML report has been sent to {profile.get('contact_email', 'your email address')}.</li>"
-        f"<li>A Tech-Kative advisor will be in touch within 2 business days to discuss your profile.</li>"
+        f"<li>A Tech-Kative advisor will be in touch within 2 business days.</li>"
         f"<li>You can also download your report directly from the previous screen.</li>"
         f"</ul></div>",
         unsafe_allow_html=True,
@@ -842,6 +1004,7 @@ def screen_email_sent():
 
 _SCREENS = {
     "welcome":    screen_welcome,
+    "consent":    screen_consent,
     "profile":    screen_profile,
     "assessment": screen_assessment,
     "review":     screen_review,

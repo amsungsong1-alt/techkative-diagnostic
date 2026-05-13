@@ -1,19 +1,18 @@
 """
-Tech-Kative AI-Readiness Diagnostic — Session State Helpers
+Tech-Kative AI-Readiness Diagnostic v2 — Session State Helpers
 
 All reads and writes to st.session_state go through these helpers.
-Keeps app.py clean and makes state shape explicit.
 """
 
 import streamlit as st
-from framework import all_item_ids, PILLAR_ORDER
+from framework import PILOT_CODES, get_scored_questions
 
 
 # ---------------------------------------------------------------------------
 # Canonical screen names
 # ---------------------------------------------------------------------------
 
-SCREENS = ["welcome", "profile", "assessment", "review", "results", "email_sent"]
+SCREENS = ["welcome", "consent", "profile", "assessment", "review", "results", "email_sent"]
 
 
 # ---------------------------------------------------------------------------
@@ -21,10 +20,10 @@ SCREENS = ["welcome", "profile", "assessment", "review", "results", "email_sent"
 # ---------------------------------------------------------------------------
 
 def init() -> None:
-    """Initialise all session state keys if not already present. Call once at app startup."""
+    """Initialise all session state keys if not already present."""
     defaults = {
-        "screen":       "welcome",
-        "item_index":   0,
+        "screen":           "welcome",
+        "item_index":       0,
         "profile": {
             "institution_name": "",
             "institution_type": "",
@@ -32,15 +31,20 @@ def init() -> None:
             "contact_name":     "",
             "contact_email":    "",
             "role":             "",
+            "pilot_code":       "",
+            "assessment_phase": "",
         },
-        "responses":     {},   # {item_id: int 1–5}
-        "scores":        None, # set after assessment completion
-        "observations":  None, # list[str], set with scores
-        "roadmap":       None, # dict, set with scores
-        "email_sent":    False,
-        "report_html":   None, # str, cached for download
-        "draft_loaded":  False,
-        "profile_errors": {},  # {field_key: error_message} for inline validation
+        "responses":         {},    # {question_id: str (label)}
+        "scores":            None,  # set after submission
+        "recommendations":   None,  # dict, set with scores
+        "regulatory_flags":  None,  # list[dict], set with scores
+        "consent_given_at":  None,  # ISO timestamp str
+        "pilot_code":        "",
+        "assessment_phase":  "",    # "Baseline (Week 1)" | "Post-Pilot (Week 7)"
+        "email_sent":        False,
+        "report_html":       None,  # str, cached for download
+        "draft_loaded":      False,
+        "profile_errors":    {},    # {field_key: error_message}
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -57,10 +61,49 @@ def go(screen: str) -> None:
 
 
 def go_to_item(index: int) -> None:
-    """Navigate to a specific assessment item (0-based index)."""
     st.session_state.item_index = index
     st.session_state.screen = "assessment"
     st.rerun()
+
+
+# ---------------------------------------------------------------------------
+# Consent
+# ---------------------------------------------------------------------------
+
+def get_consent():
+    return st.session_state.consent_given_at
+
+
+def set_consent(ts: str) -> None:
+    st.session_state.consent_given_at = ts
+
+
+def has_consented() -> bool:
+    return bool(st.session_state.consent_given_at)
+
+
+# ---------------------------------------------------------------------------
+# Pilot mode
+# ---------------------------------------------------------------------------
+
+def get_pilot_code() -> str:
+    return st.session_state.pilot_code
+
+
+def set_pilot_code(code: str) -> None:
+    st.session_state.pilot_code = code
+
+
+def is_pilot_mode() -> bool:
+    return st.session_state.pilot_code.upper() in {c.upper() for c in PILOT_CODES}
+
+
+def get_assessment_phase() -> str:
+    return st.session_state.assessment_phase
+
+
+def set_assessment_phase(phase: str) -> None:
+    st.session_state.assessment_phase = phase
 
 
 # ---------------------------------------------------------------------------
@@ -84,31 +127,37 @@ def profile_complete() -> bool:
 # Assessment responses
 # ---------------------------------------------------------------------------
 
-def get_response(item_id: str):
-    """Return the stored score for an item, or None if not answered."""
-    return st.session_state.responses.get(item_id)
+def get_response(question_id: str):
+    return st.session_state.responses.get(question_id)
 
 
-def set_response(item_id: str, score: int) -> None:
-    st.session_state.responses[item_id] = score
+def set_response(question_id: str, value) -> None:
+    st.session_state.responses[question_id] = value
 
 
-def all_answered() -> bool:
-    """True if all 24 items have a recorded response."""
-    ids = all_item_ids()
-    return all(iid in st.session_state.responses for iid in ids)
+def answered_count(country: str = "") -> int:
+    """Count answered scored questions for the given country."""
+    if not country:
+        country = st.session_state.profile.get("country", "")
+    scored_ids = {q["id"] for q in get_scored_questions(country)}
+    return sum(1 for qid in scored_ids if qid in st.session_state.responses)
 
 
-def answered_count() -> int:
-    return len(st.session_state.responses)
+def total_scored(country: str = "") -> int:
+    if not country:
+        country = st.session_state.profile.get("country", "")
+    return len(get_scored_questions(country))
 
 
-def total_items() -> int:
-    return len(all_item_ids())
+def all_answered(country: str = "") -> bool:
+    if not country:
+        country = st.session_state.profile.get("country", "")
+    scored_ids = {q["id"] for q in get_scored_questions(country)}
+    return all(qid in st.session_state.responses for qid in scored_ids)
 
 
 # ---------------------------------------------------------------------------
-# Scores and observations
+# Scores and results
 # ---------------------------------------------------------------------------
 
 def get_scores() -> dict:
@@ -119,24 +168,24 @@ def set_scores(scores: dict) -> None:
     st.session_state.scores = scores
 
 
-def get_observations() -> list:
-    return st.session_state.observations or []
+def get_recommendations():
+    return st.session_state.recommendations
 
 
-def set_observations(observations: list) -> None:
-    st.session_state.observations = observations
+def set_recommendations(recs) -> None:
+    st.session_state.recommendations = recs
 
 
-def get_roadmap():
-    return st.session_state.roadmap
+def get_regulatory_flags():
+    return st.session_state.regulatory_flags
 
 
-def set_roadmap(roadmap: dict) -> None:
-    st.session_state.roadmap = roadmap
+def set_regulatory_flags(flags) -> None:
+    st.session_state.regulatory_flags = flags
 
 
 # ---------------------------------------------------------------------------
-# Report HTML (cached for download button)
+# Report HTML
 # ---------------------------------------------------------------------------
 
 def get_report_html():
@@ -160,7 +209,7 @@ def email_was_sent() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Utility: item_index accessors
+# Item index
 # ---------------------------------------------------------------------------
 
 def current_item_index() -> int:
@@ -176,30 +225,24 @@ def set_item_index(index: int) -> None:
 # ---------------------------------------------------------------------------
 
 def build_draft_payload() -> dict:
-    """Serialise current progress for download as a JSON draft file."""
     return {
-        "version": 1,
-        "item_index": st.session_state.item_index,
-        "responses": st.session_state.responses,
-        "profile": st.session_state.profile,
+        "version":          2,
+        "item_index":       st.session_state.item_index,
+        "responses":        st.session_state.responses,
+        "profile":          st.session_state.profile,
+        "pilot_code":       st.session_state.pilot_code,
+        "assessment_phase": st.session_state.assessment_phase,
     }
 
 
 def load_draft_payload(payload: dict) -> bool:
-    """
-    Load a previously saved draft into session state.
-    Returns True if valid and applied, False otherwise.
-    """
     if not isinstance(payload, dict):
         return False
-    if payload.get("version") != 1:
+    if payload.get("version") not in (1, 2):
         return False
     responses = payload.get("responses", {})
     if not isinstance(responses, dict):
         return False
-    for v in responses.values():
-        if not isinstance(v, int) or v < 1 or v > 5:
-            return False
     item_index = payload.get("item_index", 0)
     if not isinstance(item_index, int) or item_index < 0:
         return False
@@ -207,5 +250,9 @@ def load_draft_payload(payload: dict) -> bool:
     st.session_state.item_index = item_index
     if isinstance(payload.get("profile"), dict):
         st.session_state.profile = payload["profile"]
+    if payload.get("pilot_code"):
+        st.session_state.pilot_code = payload["pilot_code"]
+    if payload.get("assessment_phase"):
+        st.session_state.assessment_phase = payload["assessment_phase"]
     st.session_state.draft_loaded = True
     return True

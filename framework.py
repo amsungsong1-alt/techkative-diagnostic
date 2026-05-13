@@ -1,1000 +1,648 @@
 """
-Tech-Kative AI-Readiness Diagnostic — Framework Definition
+Tech-Kative AI-Readiness Diagnostic v2 — Framework Definition
 
-This module is the single source of truth for the diagnostic methodology.
-Edit here to evolve the item bank, scoring thresholds, or observation templates
-without touching any application or scoring code.
+Single source of truth for the diagnostic methodology, question bank,
+scoring constants, and tier-based recommendations.
+
+Regulatory anchors:
+  Ghana:     Data Protection Act, 2012 (Act 843) | DPC Privacy Seal (January 2026)
+  Nigeria:   NDPA 2023 / GAID 2025 (effective 19 September 2025)
+  Continental: Africa Declaration on AI (Kigali, 4 April 2025)
+               AU Continental AI Strategy (2024)
+  Ghana AI:  Ghana National AI Strategy 2025-2035 (launched 24 April 2026)
 """
 
 # ---------------------------------------------------------------------------
-# Scoring constants
+# Question type constants
 # ---------------------------------------------------------------------------
 
-SCORE_SCALE_FACTOR = 20  # pillar score = mean(item scores) × 20 → range 20–100
+YES_NO_OPTIONS     = ["Yes", "Partial", "No"]
+FOUR_OPTION_LIKERT = ["Not yet", "Beginning", "Established", "Leading"]
+
+YES_NO_SCORES  = {"Yes": 1.0, "Partial": 0.5, "No": 0.0}
+LIKERT_SCORES  = {"Not yet": 0.0, "Beginning": 0.33, "Established": 0.67, "Leading": 1.0}
+
+# ---------------------------------------------------------------------------
+# Tier bands (Emerging / Developing / Established / Leading)
+# ---------------------------------------------------------------------------
 
 TIERS = [
-    {"label": "Pre-foundational", "min": 0,  "max": 39,  "colour": "#b8651f"},
-    {"label": "Foundational",     "min": 40, "max": 59,  "colour": "#8b3fb8"},
-    {"label": "Developing",       "min": 60, "max": 79,  "colour": "#2d8659"},
-    {"label": "Mature",           "min": 80, "max": 100, "colour": "#1a1f3a"},
+    {"label": "Emerging",    "min": 0,  "max": 24,  "colour": "#b8651f"},
+    {"label": "Developing",  "min": 25, "max": 49,  "colour": "#8b3fb8"},
+    {"label": "Established", "min": 50, "max": 74,  "colour": "#2d8659"},
+    {"label": "Leading",     "min": 75, "max": 100, "colour": "#1a1f3a"},
 ]
 
+# ---------------------------------------------------------------------------
+# Pilot codes — Tech-Kative x Standbasis joint pilot (June-July 2026)
+# ---------------------------------------------------------------------------
+
+PILOT_CODES = {"TKSB-GH-001", "TKSB-NG-001"}
+
+# ---------------------------------------------------------------------------
+# Pillar colours and order
+# ---------------------------------------------------------------------------
+
 PILLAR_COLOURS = {
-    "p1": "#8b3fb8",  # purple/magenta — Governance & Policy
-    "p2": "#1a1f3a",  # deep navy      — Data Foundations
-    "p3": "#2d8659",  # accent green   — Organisational Capacity
-    "p4": "#b8651f",  # warm amber     — Ethical Infrastructure
+    "p1": "#8b3fb8",  # purple  — Data Foundations
+    "p2": "#1a1f3a",  # navy    — Governance & Protection
+    "p3": "#2d8659",  # green   — AI Readiness
+    "p4": "#b8651f",  # amber   — Responsible Deployment
 }
 
 PILLAR_ORDER = ["p1", "p2", "p3", "p4"]
 
 # ---------------------------------------------------------------------------
-# Institution types (profile screen)
+# Dropdown options
 # ---------------------------------------------------------------------------
 
 INSTITUTION_TYPES = [
     "University / Tertiary Institution",
     "Polytechnic / Technical College",
     "Secondary School / High School",
-    "Primary School",
+    "Primary / Basic School",
     "Special Needs / Inclusive Education Institution",
     "Government Education Agency (MDA)",
     "NGO / Education Development Partner",
     "Other",
 ]
 
-# ---------------------------------------------------------------------------
-# Helper: build a 5-option list from labels
-# ---------------------------------------------------------------------------
+COUNTRY_OPTIONS = [
+    "Ghana",
+    "Nigeria",
+    "Kenya",
+    "South Africa",
+    "Rwanda",
+    "Ethiopia",
+    "Senegal",
+    "Tanzania",
+    "Uganda",
+    "Zambia",
+    "Other",
+]
 
-def _opts(*labels):
-    return [{"score": i + 1, "label": label} for i, label in enumerate(labels)]
-
-
 # ---------------------------------------------------------------------------
-# Item bank — four pillars, six items each
+# Pillar metadata (no embedded items — questions live in flat QUESTIONS list)
 # ---------------------------------------------------------------------------
 
 PILLARS = [
-    # -----------------------------------------------------------------------
-    # Pillar 1 — Governance & Policy
-    # -----------------------------------------------------------------------
     {
         "id": "p1",
-        "name": "Governance & Policy",
-        "short_name": "Governance",
-        "description": (
-            "Data protection alignment, consent architecture, accountability lines, "
-            "decision rights, and regulatory posture against NDPR and equivalent African regimes."
-        ),
-        "colour": PILLAR_COLOURS["p1"],
-        "items": [
-            {
-                "id": "1.1",
-                "pillar_id": "p1",
-                "sequence": 1,
-                "short_label": "External data sharing governance",
-                "question": (
-                    "When student or teacher data is shared with a ministry, "
-                    "government agency (MDA), or external partner, how is that data flow governed?"
-                ),
-                "help_text": (
-                    "Consider whether a documented data-sharing protocol exists, who has authority "
-                    "to authorise the flow, what consent basis applies, and whether the institution "
-                    "retains visibility into downstream use of the data. Select the option that most "
-                    "accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No protocol exists; data is shared on request without formal process.",
-                    "Data is shared informally based on verbal agreements or individual judgment.",
-                    "A sharing protocol exists on paper but is not consistently followed.",
-                    "A documented protocol is in place and applied to all external data transfers.",
-                    "Protocol is documented, consistently applied, and periodically audited; downstream use is tracked.",
-                ),
-            },
-            {
-                "id": "1.2",
-                "pillar_id": "p1",
-                "sequence": 2,
-                "short_label": "Consent collection and recording",
-                "question": (
-                    "When personal data is collected from students, parents, or staff, "
-                    "how is informed consent obtained and recorded?"
-                ),
-                "help_text": (
-                    "Consider whether consent is sought before collection, whether the purpose "
-                    "is clearly explained in plain language, how consent records are stored, and "
-                    "whether withdrawal of consent is supported. Select the option that most "
-                    "accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No consent process exists; data is collected without notification.",
-                    "Consent is assumed or obtained verbally without records.",
-                    "A consent form exists but is not consistently used or stored.",
-                    "Consent is formally sought, recorded, and linked to specific data processing purposes.",
-                    "Consent records are systematically maintained and reviewed; consent withdrawal is operationally supported.",
-                ),
-            },
-            {
-                "id": "1.3",
-                "pillar_id": "p1",
-                "sequence": 3,
-                "short_label": "Incident accountability and escalation",
-                "question": (
-                    "When a data-related incident occurs — such as a breach, misuse, or loss — "
-                    "how is accountability determined and escalation managed?"
-                ),
-                "help_text": (
-                    "Consider whether there is a named data protection officer or equivalent role, "
-                    "whether an incident response procedure exists, and how incidents are communicated "
-                    "to affected parties and regulators. Select the option that most accurately "
-                    "describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No accountability structure exists; incidents are handled ad hoc.",
-                    "A person is informally responsible but no response procedure exists.",
-                    "An accountability structure is documented but not consistently activated during incidents.",
-                    "Roles, escalation paths, and notification obligations are documented and applied.",
-                    "All of the above, plus regular incident response drills; post-incident reviews inform policy updates.",
-                ),
-            },
-            {
-                "id": "1.4",
-                "pillar_id": "p1",
-                "sequence": 4,
-                "short_label": "AI procurement decision rights",
-                "question": (
-                    "When decisions are made about which AI tools or data systems to procure or adopt, "
-                    "how are decision rights distributed across the institution?"
-                ),
-                "help_text": (
-                    "Consider who has authority to approve AI procurement, whether ICT, academic, "
-                    "and administrative leadership are involved, and whether there is a formal "
-                    "evaluation or approval process. Select the option that most accurately "
-                    "describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "Procurement decisions are made individually without institutional oversight.",
-                    "Decisions are made by one department without cross-functional input.",
-                    "A review process exists but participation is inconsistent; decisions sometimes bypass it.",
-                    "Decision rights are defined, documented, and a multi-stakeholder review process is consistently applied.",
-                    "All of the above, plus post-adoption review to assess alignment with institutional policy.",
-                ),
-            },
-            {
-                "id": "1.5",
-                "pillar_id": "p1",
-                "sequence": 5,
-                "short_label": "Regulatory alignment and compliance",
-                "question": (
-                    "When the institution engages with Nigeria's NDPR, Ghana's Data Protection Act, "
-                    "Kenya's PDPA, or any applicable regional data protection regime, "
-                    "how is regulatory alignment maintained?"
-                ),
-                "help_text": (
-                    "Consider whether the institution has mapped its data processing activities "
-                    "against the applicable legal framework, whether compliance obligations are "
-                    "assigned to named roles, and whether the institution responds to regulatory "
-                    "guidance proactively. Select the option that most accurately describes "
-                    "current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No awareness or engagement with applicable data protection regulations.",
-                    "Regulations are known at senior level but no mapping or compliance activity has taken place.",
-                    "Some compliance activities have occurred (e.g., a privacy policy exists) but are not systematically maintained.",
-                    "A formal compliance programme is in place with assigned ownership and documented controls.",
-                    "All of the above, plus active engagement with regulatory updates; the institution monitors sector-level guidance.",
-                ),
-            },
-            {
-                "id": "1.6",
-                "pillar_id": "p1",
-                "sequence": 6,
-                "short_label": "Policy lifecycle management",
-                "question": (
-                    "When policies governing data use are written or updated, "
-                    "how is that process managed and communicated to staff?"
-                ),
-                "help_text": (
-                    "Consider whether there is a policy lifecycle covering drafting, approval, and review; "
-                    "whether staff are informed when policies change; and whether policy documents are "
-                    "accessible to those whose work they govern. Select the option that most accurately "
-                    "describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No formal policies exist; practice is entirely informal.",
-                    "Some policies exist but were written once and have not been updated or communicated.",
-                    "Policies exist and are updated occasionally, but communication to staff is inconsistent.",
-                    "A policy lifecycle is in place; updates are communicated through defined channels.",
-                    "All of the above, plus staff acknowledgment is recorded and policy effectiveness is assessed periodically.",
-                ),
-            },
-        ],
-    },
-
-    # -----------------------------------------------------------------------
-    # Pillar 2 — Data Foundations
-    # -----------------------------------------------------------------------
-    {
-        "id": "p2",
         "name": "Data Foundations",
         "short_name": "Data",
         "description": (
-            "Data quality, standardisation, integrity controls, ownership clarity, "
-            "portability, and whether the institution's data substrate is structured for AI use."
+            "Whether the institution systematically collects, records, owns, and can export "
+            "its data in a form that supports responsible AI use."
+        ),
+        "colour": PILLAR_COLOURS["p1"],
+    },
+    {
+        "id": "p2",
+        "name": "Governance & Protection",
+        "short_name": "Governance",
+        "description": (
+            "Policies, consent procedures, incident response, and alignment with applicable "
+            "national data protection law (Ghana Act 843; Nigeria NDPA 2023 / GAID 2025)."
         ),
         "colour": PILLAR_COLOURS["p2"],
-        "items": [
-            {
-                "id": "2.1",
-                "pillar_id": "p2",
-                "sequence": 1,
-                "short_label": "Data quality assurance at entry",
-                "question": (
-                    "When student academic or administrative records are created or updated, "
-                    "how is data quality assured?"
-                ),
-                "help_text": (
-                    "Consider whether there are validation rules at point of entry, whether "
-                    "duplicate records are detected and resolved, and whether there is a process "
-                    "for identifying and correcting errors over time. Select the option that most "
-                    "accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No quality controls exist; data is entered without validation.",
-                    "Staff apply personal judgment to catch errors; no institutional standard exists.",
-                    "Some validation rules exist in certain systems, but coverage is partial and inconsistent.",
-                    "Data quality standards are defined, validation is applied at entry, and errors are tracked and resolved.",
-                    "All of the above, plus automated quality monitoring and quality metrics are reviewed by leadership.",
-                ),
-            },
-            {
-                "id": "2.2",
-                "pillar_id": "p2",
-                "sequence": 2,
-                "short_label": "Cross-system data standardisation",
-                "question": (
-                    "When data is recorded across different departments or systems — "
-                    "such as admissions, finance, and academic records — "
-                    "how is consistency of formats and definitions maintained?"
-                ),
-                "help_text": (
-                    "Consider whether the institution uses a common data dictionary or terminology "
-                    "standard, whether a student ID or other key identifier links records across "
-                    "systems, and whether data can be reliably combined. Select the option that "
-                    "most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "Each department uses its own formats and definitions with no coordination.",
-                    "Informal agreements exist between some departments, but no institutional standard is in place.",
-                    "A partial standard exists for one data category but does not cover the full data landscape.",
-                    "A data dictionary or standardisation framework covers major data categories and is actively maintained.",
-                    "All of the above, plus cross-system linkage is tested regularly and standardisation extends to partner data.",
-                ),
-            },
-            {
-                "id": "2.3",
-                "pillar_id": "p2",
-                "sequence": 3,
-                "short_label": "Data integrity investigation process",
-                "question": (
-                    "When data integrity is questioned — for example, if a record appears "
-                    "inconsistent or anomalous — how is that concern investigated and resolved?"
-                ),
-                "help_text": (
-                    "Consider whether there is a formal process for flagging and investigating "
-                    "data integrity concerns, whether records of investigations are kept, and "
-                    "whether systemic issues are escalated. Select the option that most accurately "
-                    "describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No process exists; anomalies are ignored or corrected informally without records.",
-                    "Staff escalate concerns informally; resolution depends on individual initiative.",
-                    "A process exists for some data categories but not others; investigations are inconsistently recorded.",
-                    "A documented integrity investigation process exists, is applied consistently, and outcomes are recorded.",
-                    "All of the above, plus integrity metrics are tracked over time and findings inform system or process improvements.",
-                ),
-            },
-            {
-                "id": "2.4",
-                "pillar_id": "p2",
-                "sequence": 4,
-                "short_label": "Data ownership and stewardship",
-                "question": (
-                    "When institutional data assets are created, maintained, or transferred, "
-                    "how is data ownership and stewardship responsibility assigned?"
-                ),
-                "help_text": (
-                    "Consider whether named roles — not just departments — are responsible for "
-                    "specific data sets, whether those roles understand their responsibilities, "
-                    "and whether ownership transfers when staff change. Select the option that "
-                    "most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No ownership is assigned; responsibility is assumed informally or not at all.",
-                    "Ownership is informally understood but not documented or consistently upheld.",
-                    "Ownership is documented for some major data sets but gaps exist; handover is inconsistent.",
-                    "Data ownership is formally assigned for all major data assets, documented, and reviewed when staff change.",
-                    "All of the above, plus stewards are trained, supported, and held accountable through formal processes.",
-                ),
-            },
-            {
-                "id": "2.5",
-                "pillar_id": "p2",
-                "sequence": 5,
-                "short_label": "Data portability and accessibility",
-                "question": (
-                    "When the institution needs to extract, move, or share a data set — "
-                    "for reporting, analysis, or a system migration — "
-                    "how portable and accessible is that data?"
-                ),
-                "help_text": (
-                    "Consider whether data can be exported in interoperable formats such as "
-                    "CSV or JSON, whether extraction is possible without specialist vendor support, "
-                    "and whether there are known barriers to data portability. Select the option "
-                    "that most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "Data is locked in systems; extraction is not possible without significant vendor intervention.",
-                    "Some data can be extracted informally, but the process is inconsistent and poorly documented.",
-                    "Export capability exists for major systems, but formats are not standardised and some data is inaccessible.",
-                    "Data can be extracted in documented, interoperable formats from all major systems with internal capability.",
-                    "All of the above, plus portability is tested regularly and vendor contracts include data portability provisions.",
-                ),
-            },
-            {
-                "id": "2.6",
-                "pillar_id": "p2",
-                "sequence": 6,
-                "short_label": "AI-substrate readiness of data",
-                "question": (
-                    "When considering whether institutional data is ready to serve as a training "
-                    "substrate or inference input for an AI system, "
-                    "how would you characterise the current state?"
-                ),
-                "help_text": (
-                    "Consider whether key data sets are structured, labelled, and sufficiently "
-                    "complete for analytical or machine-learning use; whether data volumes meet "
-                    "minimum thresholds; and whether known quality gaps would undermine model "
-                    "reliability. If this question is outside your direct knowledge, select the "
-                    "option that best reflects what you know of the institution's data systems. "
-                    "Select the option that most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "Data is largely unstructured, incomplete, or unavailable in digital form.",
-                    "Some structured data exists, but significant gaps in completeness and labelling make AI use impractical.",
-                    "Core data sets are structured and reasonably complete, but inconsistencies remain that would require remediation.",
-                    "Most key data sets are structured, labelled, sufficiently complete, and quality has been assessed against AI-use requirements.",
-                    "All of the above, plus AI-readiness of data is regularly reviewed, enriched, and documented for specific use cases.",
-                ),
-            },
-        ],
     },
-
-    # -----------------------------------------------------------------------
-    # Pillar 3 — Organisational Capacity
-    # -----------------------------------------------------------------------
     {
         "id": "p3",
-        "name": "Organisational Capacity",
-        "short_name": "Capacity",
+        "name": "AI Readiness",
+        "short_name": "AI Readiness",
         "description": (
-            "Leadership alignment, technical capability, change-management readiness, "
-            "training infrastructure, and the human systems that determine whether AI "
-            "is absorbed or rejected by the institution."
+            "Whether the institution has a documented strategy, clear use-cases, technical "
+            "capacity, and rigorous vendor evaluation processes for AI adoption."
         ),
         "colour": PILLAR_COLOURS["p3"],
-        "items": [
-            {
-                "id": "3.1",
-                "pillar_id": "p3",
-                "sequence": 1,
-                "short_label": "Senior leadership alignment on AI",
-                "question": (
-                    "When AI strategy or technology investment decisions are discussed at senior level, "
-                    "how aligned is leadership on the institution's direction and priorities?"
-                ),
-                "help_text": (
-                    "Consider whether a formal AI strategy or digital transformation strategy exists, "
-                    "whether senior leadership — academic and administrative — share a common "
-                    "understanding of its content, and whether it is referenced in institutional "
-                    "planning. Select the option that most accurately describes current practice — "
-                    "not aspiration."
-                ),
-                "options": _opts(
-                    "No AI or technology strategy exists; leadership has no shared position.",
-                    "Individual leaders have personal views on AI but there is no institutional consensus or documented position.",
-                    "A strategy document exists or is in progress, but leadership alignment is partial or contested.",
-                    "A formal strategy exists, is endorsed by senior leadership, and is reflected in operational planning.",
-                    "All of the above, plus strategy is reviewed regularly and progress is reported to governing bodies.",
-                ),
-            },
-            {
-                "id": "3.2",
-                "pillar_id": "p3",
-                "sequence": 2,
-                "short_label": "Internal technical capability",
-                "question": (
-                    "When AI tools or data systems are to be implemented, "
-                    "what is the technical capability available within the institution "
-                    "to configure, manage, and support them?"
-                ),
-                "help_text": (
-                    "Consider the skills profile of ICT and data staff — not just leadership — "
-                    "whether technical roles relevant to AI and data management exist, and "
-                    "whether staff can operate independently or are dependent on external vendors. "
-                    "Select the option that most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No technical staff with relevant AI or data skills exist; the institution is entirely vendor-dependent.",
-                    "Basic ICT staff exist but have no training or experience relevant to AI or data management.",
-                    "Some technical capability exists in pockets — one or two individuals — but is not institutional; significant vendor dependency remains.",
-                    "A team with relevant technical capability exists, roles are defined, and the institution can manage AI tools with limited vendor support.",
-                    "All of the above, plus internal capability is mapped, succession-planned, and developed through ongoing professional learning.",
-                ),
-            },
-            {
-                "id": "3.3",
-                "pillar_id": "p3",
-                "sequence": 3,
-                "short_label": "Change management practice",
-                "question": (
-                    "When significant technology or operational changes are introduced, "
-                    "how does the institution manage the transition and support staff through it?"
-                ),
-                "help_text": (
-                    "Consider whether there is a change management methodology or practice, "
-                    "how communication about changes is structured, whether staff concerns are "
-                    "surfaced and addressed, and whether adoption is monitored. Select the option "
-                    "that most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "Change is implemented with no structured management; staff adapt without institutional support.",
-                    "Change communications happen informally; no structured methodology is applied.",
-                    "Some elements of change management are applied — such as briefings or training — but not consistently.",
-                    "A change management approach is applied to significant technology changes, covering communication, training, and adoption monitoring.",
-                    "All of the above, plus change readiness is assessed before implementation; feedback loops inform how changes are rolled out.",
-                ),
-            },
-            {
-                "id": "3.4",
-                "pillar_id": "p3",
-                "sequence": 4,
-                "short_label": "Training infrastructure for technology",
-                "question": (
-                    "When staff need training on data systems, digital tools, or AI-related skills, "
-                    "how is that training designed, delivered, and sustained?"
-                ),
-                "help_text": (
-                    "Consider whether a training plan or learning and development framework exists "
-                    "for technology topics, whether training is delivered on an ad hoc or structured "
-                    "basis, and whether its effectiveness is evaluated. Select the option that most "
-                    "accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No formal training exists; staff learn informally through individual initiative.",
-                    "Training is provided occasionally in response to specific needs, without a broader plan.",
-                    "A training programme exists but is not updated to reflect current technology or tied to strategic priorities.",
-                    "A structured training programme for technology and data skills is in place, linked to institutional priorities, and delivered consistently.",
-                    "All of the above, plus training outcomes are evaluated and the programme evolves based on performance data and emerging needs.",
-                ),
-            },
-            {
-                "id": "3.5",
-                "pillar_id": "p3",
-                "sequence": 5,
-                "short_label": "Human-AI workflow definition",
-                "question": (
-                    "When AI or data systems are introduced, "
-                    "how are the human roles, responsibilities, and workflows "
-                    "that interact with those systems defined and managed?"
-                ),
-                "help_text": (
-                    "Consider whether process maps or workflow documentation exist for AI-adjacent roles, "
-                    "whether staff understand how AI outputs are to be used in their work, and whether "
-                    "role boundaries between human judgment and automated output are clearly defined. "
-                    "Select the option that most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No definition of roles or workflows in relation to AI systems; integration is entirely informal.",
-                    "Some informal understanding exists among directly involved staff, but no documentation or institutional definition.",
-                    "Roles and workflows are documented for some AI use cases but not consistently across the institution.",
-                    "Roles, workflows, and human-AI decision boundaries are defined and documented for all active AI implementations.",
-                    "All of the above, plus role definitions are reviewed as AI systems evolve and staff have clear channels to raise concerns.",
-                ),
-            },
-            {
-                "id": "3.6",
-                "pillar_id": "p3",
-                "sequence": 6,
-                "short_label": "Institutional AI self-assessment",
-                "question": (
-                    "When the institution assesses its own readiness for AI adoption, "
-                    "how honest and systematic is that self-assessment process?"
-                ),
-                "help_text": (
-                    "Consider whether the institution conducts formal internal assessments such as "
-                    "maturity reviews or gap analyses, whether external perspectives are sought, "
-                    "whether findings are acted upon, and whether leadership engages critically "
-                    "with weaknesses. Select the option that most accurately describes current "
-                    "practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No formal self-assessment takes place; the institution has no structured view of its own readiness.",
-                    "Informal or anecdotal views on readiness circulate at leadership level but are not tested against evidence.",
-                    "Some assessments have been conducted — such as a one-time review — but are not systematic or consistently acted upon.",
-                    "Structured self-assessment occurs periodically, findings are documented, and improvement actions are tracked.",
-                    "All of the above, plus external benchmarking is used and self-assessment findings directly inform strategy and investment decisions.",
-                ),
-            },
-        ],
     },
-
-    # -----------------------------------------------------------------------
-    # Pillar 4 — Ethical Infrastructure
-    # -----------------------------------------------------------------------
     {
         "id": "p4",
-        "name": "Ethical Infrastructure",
-        "short_name": "Ethics",
+        "name": "Responsible Deployment",
+        "short_name": "Deployment",
         "description": (
-            "Bias mitigation posture, explainability standards for non-technical users, "
-            "recourse mechanisms, equity considerations, and stakeholder representation "
-            "in AI governance processes."
+            "Bias checking, explainability, human oversight, recourse mechanisms, and data "
+            "sovereignty — the operational layer that makes AI use defensible."
         ),
         "colour": PILLAR_COLOURS["p4"],
-        "items": [
-            {
-                "id": "4.1",
-                "pillar_id": "p4",
-                "sequence": 1,
-                "short_label": "Bias assessment and mitigation",
-                "question": (
-                    "When AI tools are selected or data models are built, "
-                    "how is the risk of bias — particularly in relation to gender, ethnicity, "
-                    "disability, or socioeconomic status — assessed and mitigated?"
-                ),
-                "help_text": (
-                    "Consider whether bias assessment is part of any procurement or development process, "
-                    "whether training data representativeness is evaluated, and whether there is a named "
-                    "role or process responsible for bias review. Select the option that most accurately "
-                    "describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "Bias risk is not considered as part of AI tool selection or data model design.",
-                    "Awareness of bias risk exists informally, but no structured assessment is conducted.",
-                    "Bias assessment occurs occasionally or for specific projects but is not applied systematically.",
-                    "A bias assessment process is formally applied to AI tool procurement and development, with documented findings.",
-                    "All of the above, plus bias monitoring continues post-deployment; findings feed back into model updates or procurement decisions.",
-                ),
-            },
-            {
-                "id": "4.2",
-                "pillar_id": "p4",
-                "sequence": 2,
-                "short_label": "AI output explainability standards",
-                "question": (
-                    "When AI systems produce outputs used in decisions affecting students or staff — "
-                    "such as flagging, scoring, or recommendations — "
-                    "how are those outputs explained to non-technical users?"
-                ),
-                "help_text": (
-                    "Consider whether outputs are accompanied by plain-language explanations of how "
-                    "they were generated, whether staff using AI outputs can articulate the basis of "
-                    "those outputs to affected individuals, and whether explanation standards are "
-                    "defined. Select the option that most accurately describes current practice — "
-                    "not aspiration."
-                ),
-                "options": _opts(
-                    "No explanation is provided; AI outputs are used as black boxes.",
-                    "Technical staff can explain outputs informally, but no standard exists for communicating to non-technical users.",
-                    "Some explanatory documentation exists, but it is not consistently applied or accessible to operational staff.",
-                    "Plain-language explanation standards are defined, applied to all AI-assisted decisions, and operational staff are trained to communicate them.",
-                    "All of the above, plus explanation quality is reviewed; affected individuals can request additional explanation through a formal channel.",
-                ),
-            },
-            {
-                "id": "4.3",
-                "pillar_id": "p4",
-                "sequence": 3,
-                "short_label": "Recourse mechanisms for AI decisions",
-                "question": (
-                    "When a student, parent, or staff member believes they have been adversely "
-                    "affected by an AI-assisted decision, how is their recourse path defined?"
-                ),
-                "help_text": (
-                    "Consider whether a formal complaints or appeals process applies to AI-assisted "
-                    "decisions, whether that process is communicated to affected parties, whether "
-                    "decisions can be reviewed by a human, and whether outcomes are recorded. "
-                    "Select the option that most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No recourse mechanism exists for AI-assisted decisions.",
-                    "General grievance processes exist but do not explicitly cover AI-assisted decisions; affected parties are unclear on their options.",
-                    "A recourse path is informally understood internally but not communicated to affected parties or consistently applied.",
-                    "A formal, communicated recourse path applies to all AI-assisted decisions, including human review and recorded outcomes.",
-                    "All of the above, plus recourse uptake and outcomes are monitored; patterns inform AI system adjustments.",
-                ),
-            },
-            {
-                "id": "4.4",
-                "pillar_id": "p4",
-                "sequence": 4,
-                "short_label": "Equity impact assessment",
-                "question": (
-                    "When deploying or procuring AI in contexts involving students — "
-                    "particularly under-resourced, rural, or marginalised groups — "
-                    "how are equity implications assessed?"
-                ),
-                "help_text": (
-                    "Consider whether equity impact assessment is part of any AI deployment process, "
-                    "whether the institution has a definition of equitable AI outcomes relevant to "
-                    "its student population, and whether deployment decisions are adjusted in response "
-                    "to equity concerns. Select the option that most accurately describes current "
-                    "practice — not aspiration."
-                ),
-                "options": _opts(
-                    "Equity implications are not assessed as part of AI deployment decisions.",
-                    "Equity concerns are occasionally raised informally but are not systematically evaluated.",
-                    "Equity considerations are documented in some AI projects but not as a universal requirement.",
-                    "Equity impact assessment is a formal requirement for AI deployments, with documented outcomes.",
-                    "All of the above, plus equity outcomes are monitored post-deployment and inform both AI configurations and institutional policy.",
-                ),
-            },
-            {
-                "id": "4.5",
-                "pillar_id": "p4",
-                "sequence": 5,
-                "short_label": "Stakeholder representation in ethics",
-                "question": (
-                    "When AI governance or ethics policies are developed, "
-                    "how are the perspectives of students, parents, frontline staff, "
-                    "and community representatives included?"
-                ),
-                "help_text": (
-                    "Consider whether consultative processes exist for AI policy development, "
-                    "whether affected communities have channels to provide input, and whether "
-                    "their input demonstrably shapes policy rather than being nominal. "
-                    "Select the option that most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No stakeholder consultation occurs in AI governance or ethics policy development.",
-                    "Some engagement takes place informally or selectively, but it is not structured or documented.",
-                    "Consultation processes exist but participation is inconsistent or limited to selected stakeholders.",
-                    "A structured consultation process is applied to AI governance policy development, with documented input from diverse stakeholders.",
-                    "All of the above, plus stakeholder input demonstrably changes policy outcomes; engagement is reported back to participants.",
-                ),
-            },
-            {
-                "id": "4.6",
-                "pillar_id": "p4",
-                "sequence": 6,
-                "short_label": "Holistic ethics review mechanism",
-                "question": (
-                    "When the institution reflects on the cumulative ethical posture of its AI activity — "
-                    "across bias, explainability, recourse, equity, and representation — "
-                    "how is that posture monitored and reviewed?"
-                ),
-                "help_text": (
-                    "Consider whether a holistic ethics review mechanism exists — such as an ethics "
-                    "committee or structured self-assessment — whether it has authority to halt or "
-                    "modify AI implementations, and whether it meets regularly. Select the option "
-                    "that most accurately describes current practice — not aspiration."
-                ),
-                "options": _opts(
-                    "No ethics review mechanism of any kind exists for AI activity.",
-                    "Ethics concerns are raised ad hoc by individuals; no institutional review structure exists.",
-                    "An ethics review process has been discussed or piloted but is not formally established or consistently active.",
-                    "A formal ethics review mechanism is established, meets regularly, and has documented authority over AI implementations.",
-                    "All of the above, plus the mechanism participates in sector-level ethics networks; its findings are shared externally.",
-                ),
-            },
-        ],
     },
 ]
 
-
 # ---------------------------------------------------------------------------
-# Observation template registry
-# ---------------------------------------------------------------------------
-# Each entry defines one rule in the observation engine.
-# Rules are evaluated in order by scoring.generate_observations().
-# Templates use {PLACEHOLDER} tokens populated from the scores dict.
+# Question bank
+# type:    "yes_no_partial" | "likert" (4-option) | "open_text" (not scored)
+# country: None = universal; "Ghana" | "Nigeria" = shown only for that country
 # ---------------------------------------------------------------------------
 
-OBSERVATION_RULES = [
+QUESTIONS = [
+
+    # ── Pillar 1: Data Foundations ──────────────────────────────────────────
     {
-        "rule_id": "R1",
-        "label": "Lowest pillar + lowest item spotlight",
-        "always": True,  # fires unconditionally as the first observation
-        "condition_description": "Always fires.",
-        "template": (
-            "Within your profile, {LOWEST_PILLAR_NAME} represents the area of most acute "
-            "development need, with a pillar score of {LOWEST_PILLAR_SCORE} out of 100. "
-            "The specific practice that scores lowest within this pillar concerns "
-            "{LOWEST_ITEM_SHORT_LABEL} (Item {LOWEST_ITEM_ID}, rated {LOWEST_ITEM_SCORE}/5). "
-            "In diagnostic practice across African education institutions, this item is a "
-            "reliable leading indicator: where it scores 1 or 2, it typically anchors the "
-            "broader pillar score and is the most productive starting point for focused "
-            "remediation — small, concrete improvements here tend to unlock progress "
-            "across related items in the same pillar."
+        "id": "df_1",
+        "pillar_id": "p1",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Does your institution maintain a documented inventory of the data it collects "
+            "from students, staff, and operations — including what is collected, where it is "
+            "stored, and who has access?"
         ),
-        "placeholders": [
-            "LOWEST_PILLAR_NAME",
-            "LOWEST_PILLAR_SCORE",
-            "LOWEST_ITEM_SHORT_LABEL",
-            "LOWEST_ITEM_ID",
-            "LOWEST_ITEM_SCORE",
-        ],
     },
     {
-        "rule_id": "R2",
-        "label": "Policy strong, data weak divergence",
-        "always": False,
-        "condition_description": "p1 >= 60 AND p2 < 50",
-        "template": (
-            "Your profile shows a notable divergence between Governance & Policy "
-            "(scored {P1_SCORE}) and Data Foundations (scored {P2_SCORE}) — a gap of "
-            "{GAP} points. This pattern is recognised across institutions at this stage: "
-            "compliance activity and policy drafting tend to outpace the slower, "
-            "less visible work of data quality, standardisation, and ownership assignment. "
-            "The practical consequence is that strong policies govern data practices that "
-            "are not yet structured well enough to sustain them. AI systems that ingest "
-            "poor-quality or unstructured data will produce unreliable outputs regardless "
-            "of how well-governed the procurement process was. Closing this gap typically "
-            "requires a dedicated data quality programme — not further policy development."
+        "id": "df_2",
+        "pillar_id": "p1",
+        "type": "likert",
+        "country": None,
+        "text": (
+            "How would you rate the consistency and reliability of how data is collected and "
+            "recorded across your institution (e.g., attendance, assessments, teacher "
+            "performance, student records)?"
         ),
-        "placeholders": ["P1_SCORE", "P2_SCORE", "GAP"],
     },
     {
-        "rule_id": "R3",
-        "label": "Ethics below governance — written policy without operationalisation",
-        "always": False,
-        "condition_description": "p1 - p4 >= 20",
-        "template": (
-            "Ethical Infrastructure (scored {P4_SCORE}) scores materially below "
-            "Governance & Policy (scored {P1_SCORE}) — a gap of {P1_MINUS_P4} points. "
-            "This configuration is worth naming directly: written policy does not "
-            "automatically produce operational ethics. Ethics infrastructure requires "
-            "active institutional machinery — bias review processes, recourse paths "
-            "that affected parties actually know about, consultation mechanisms that "
-            "demonstrably shape decisions, and oversight bodies with real authority. "
-            "Policy language without this machinery creates a legitimacy gap that becomes "
-            "visible the first time an AI-assisted decision is challenged."
+        "id": "df_3",
+        "pillar_id": "p1",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Does your institution have documented standards or templates for how core data "
+            "(enrolment, results, attendance) is recorded and maintained?"
         ),
-        "placeholders": ["P4_SCORE", "P1_SCORE", "P1_MINUS_P4"],
     },
     {
-        "rule_id": "R4",
-        "label": "Organisational capacity drag on an otherwise strong profile",
-        "always": False,
-        "condition_description": "p3 is lowest pillar AND composite >= 50 AND composite - p3 >= 15",
-        "template": (
-            "Your composite profile sits at {COMPOSITE} ({TIER}), but Organisational "
-            "Capacity (scored {P3_SCORE}) falls {DRAG} points below your composite "
-            "average — and is the lowest of your four pillars. This drag is significant "
-            "because human capacity is the implementation layer through which all other "
-            "investments are realised. Strong governance frameworks, high-quality data, "
-            "and ethical policies produce limited value if the institution lacks the "
-            "leadership alignment, technical skills, and change management capability "
-            "to act on them. Improving this pillar typically unlocks multiplier effects "
-            "across the other three."
+        "id": "df_4",
+        "pillar_id": "p1",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "If your institution stopped using its current digital systems or vendors tomorrow, "
+            "could you export and retain all of your data in a usable format?"
         ),
-        "placeholders": ["TIER", "COMPOSITE", "P3_SCORE", "DRAG"],
     },
     {
-        "rule_id": "R5",
-        "label": "Balanced profile",
-        "always": False,
-        "condition_description": "spread < 15 AND R2/R3/R4 all missed (or forced as fallback)",
-        "template": {
-            "A": (  # composite >= 60
-                "Your profile is notably balanced across all four pillars, with a spread of "
-                "{SPREAD} points between your highest and lowest pillar score. At a composite "
-                "of {COMPOSITE} ({TIER}), this reflects consistent institutional development "
-                "rather than uneven progress — a profile that is meaningfully harder to achieve "
-                "than it might appear. Institutions at this tier with balanced profiles typically "
-                "benefit most from deepening practice within each pillar concurrently: raising "
-                "each score by a further 10 points is more achievable and more durable than "
-                "attempting a step-change in a single area."
-            ),
-            "B": (  # composite < 60
-                "Your profile is balanced across all four pillars, with a spread of {SPREAD} "
-                "points between your highest and lowest pillar score. At a composite of "
-                "{COMPOSITE} ({TIER}), this balance reflects a consistent early-stage development "
-                "posture. Because no single pillar is dramatically weaker than the others, "
-                "capacity-building investment can be broadly distributed. The recommended actions "
-                "below identify the highest-leverage activities in each pillar for institutions "
-                "at this stage — we suggest selecting one action per pillar and completing it "
-                "before adding more."
-            ),
-        },
-        "placeholders": ["SPREAD", "COMPOSITE", "TIER"],
+        "id": "df_5",
+        "pillar_id": "p1",
+        "type": "likert",
+        "country": None,
+        "text": (
+            "How clearly is ownership of institutional data assigned — i.e., who is accountable "
+            "for data quality, access decisions, and corrections when something goes wrong?"
+        ),
     },
     {
-        "rule_id": "R6",
-        "label": "Highest pillar as leverage point for cross-pillar progress",
-        "always": False,
-        "condition_description": "highest_pillar_score >= 70 AND spread >= 20",
-        "template": (
-            "Your strongest pillar — {HIGHEST_PILLAR_NAME} (scored {HIGHEST_PILLAR_SCORE}) — "
-            "represents an institutional capability that can be leveraged to accelerate "
-            "progress in weaker pillars. Institutions with a demonstrably strong "
-            "{HIGHEST_PILLAR_SHORT} function are well-positioned to extend its disciplines "
-            "and processes into adjacent areas: {HIGHEST_PILLAR_LEVERAGE_TEXT} "
-            "This cross-pillar extension approach is typically more efficient than building "
-            "each pillar independently from scratch."
+        "id": "df_6",
+        "pillar_id": "p1",
+        "type": "open_text",
+        "country": None,
+        "text": (
+            "Briefly describe the biggest data-related challenge your institution faces today. "
+            "(Optional — not scored)"
         ),
-        "placeholders": [
-            "HIGHEST_PILLAR_NAME",
-            "HIGHEST_PILLAR_SCORE",
-            "HIGHEST_PILLAR_SHORT",
-            "HIGHEST_PILLAR_LEVERAGE_TEXT",
-        ],
+    },
+
+    # ── Pillar 2: Governance & Protection ──────────────────────────────────
+    {
+        "id": "gp_1",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Does your institution have a written data protection policy that covers how "
+            "personal data is collected, used, stored, and shared?"
+        ),
+    },
+    {
+        "id": "gp_2",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Do you have documented consent procedures for collecting personal data from "
+            "students, parents, and staff — including a clear statement of purpose?"
+        ),
+    },
+    {
+        "id": "gp_3",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Is there a documented incident response procedure if data is lost, stolen, "
+            "or accessed without authorisation?"
+        ),
+    },
+    {
+        "id": "gp_4",
+        "pillar_id": "p2",
+        "type": "likert",
+        "country": None,
+        "text": (
+            "How transparently does your institution communicate its data practices to parents, "
+            "students, and the wider school community?"
+        ),
+    },
+    # Ghana-specific
+    {
+        "id": "gp_5_gh",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": "Ghana",
+        "text": (
+            "Is your institution registered as a data controller with Ghana's Data Protection "
+            "Commission (DPC), as required under §27 of the Data Protection Act, 2012 (Act 843)?"
+        ),
+    },
+    {
+        "id": "gp_6_gh",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": "Ghana",
+        "text": (
+            "Does your institution hold the DPC Privacy Seal (effective January 2026), "
+            "or is an application in progress?"
+        ),
+    },
+    # Nigeria-specific
+    {
+        "id": "gp_5_ng",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": "Nigeria",
+        "text": (
+            "Is your institution registered with Nigeria's Data Protection Commission (NDPC), "
+            "and if so, classified as a Data Controller/Processor of Major Importance (DCPMI) "
+            "under GAID 2025?"
+        ),
+    },
+    {
+        "id": "gp_6_ng",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": "Nigeria",
+        "text": (
+            "Has a Data Protection Officer (DPO) been formally designated at your institution, "
+            "with documented responsibility for compliance reporting?"
+        ),
+    },
+    # Universal open-text
+    {
+        "id": "gp_7",
+        "pillar_id": "p2",
+        "type": "open_text",
+        "country": None,
+        "text": (
+            "What is the most pressing data protection or governance concern at your institution "
+            "today? (Optional — not scored)"
+        ),
+    },
+
+    # ── Pillar 3: AI Readiness ─────────────────────────────────────────────
+    {
+        "id": "ar_1",
+        "pillar_id": "p3",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Does your institution have a documented AI strategy or written plan that defines "
+            "how and where AI tools will be used?"
+        ),
+    },
+    {
+        "id": "ar_2",
+        "pillar_id": "p3",
+        "type": "likert",
+        "country": None,
+        "text": (
+            "How clearly defined are the specific problems or use-cases your institution wants "
+            "AI to address (e.g., personalised learning, administrative efficiency, student support)?"
+        ),
+    },
+    {
+        "id": "ar_3",
+        "pillar_id": "p3",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Does your institution have technical staff or external partners with the expertise "
+            "to implement and oversee AI tools responsibly?"
+        ),
+    },
+    {
+        "id": "ar_4",
+        "pillar_id": "p3",
+        "type": "likert",
+        "country": None,
+        "text": (
+            "Before adopting an AI tool, how rigorously does your institution evaluate whether "
+            "AI is the right solution — including consideration of simpler, non-AI alternatives?"
+        ),
+    },
+    {
+        "id": "ar_5",
+        "pillar_id": "p3",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Does your institution's procurement or technology decision process require AI vendors "
+            "to disclose how their systems were trained, what data they use, and where that "
+            "data is stored?"
+        ),
+    },
+    {
+        "id": "ar_6",
+        "pillar_id": "p3",
+        "type": "open_text",
+        "country": None,
+        "text": (
+            "What AI capability would be most valuable to your institution if it could be "
+            "implemented responsibly? (Optional — not scored)"
+        ),
+    },
+
+    # ── Pillar 4: Responsible Deployment ───────────────────────────────────
+    {
+        "id": "rd_1",
+        "pillar_id": "p4",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Does your institution have a documented process to check whether AI tools produce "
+            "fair outcomes across different groups of students "
+            "(gender, language, ability, background)?"
+        ),
+    },
+    {
+        "id": "rd_2",
+        "pillar_id": "p4",
+        "type": "likert",
+        "country": None,
+        "text": (
+            "If an AI tool made a decision that affected a student or teacher, how clearly could "
+            "a staff member explain to that person why the decision was made?"
+        ),
+    },
+    {
+        "id": "rd_3",
+        "pillar_id": "p4",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Is human review and approval required before AI-generated decisions are acted upon "
+            "(e.g., for student placement, performance flags, or resource allocation)?"
+        ),
+    },
+    {
+        "id": "rd_4",
+        "pillar_id": "p4",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Does your institution have a documented way for students, parents, or staff to "
+            "challenge or appeal an AI-influenced decision they believe is unfair?"
+        ),
+    },
+    {
+        "id": "rd_5",
+        "pillar_id": "p4",
+        "type": "yes_no_partial",
+        "country": None,
+        "text": (
+            "Are student data and operational data stored on locally governed or "
+            "African-headquartered infrastructure, consistent with the data sovereignty "
+            "commitments of the Africa Declaration on AI (Kigali, 4 April 2025)?"
+        ),
+    },
+    {
+        "id": "rd_6",
+        "pillar_id": "p4",
+        "type": "open_text",
+        "country": None,
+        "text": (
+            "What is your biggest concern about deploying AI in your institution? "
+            "(Optional — not scored)"
+        ),
     },
 ]
 
-
 # ---------------------------------------------------------------------------
-# Per-pillar actionable roadmaps — score-band calibrated action items
-# ---------------------------------------------------------------------------
-# Score bands: low = score < 50, mid = 50–74, high >= 75
-# Each band has 3 action strings. Used by scoring.generate_roadmap().
+# Recommendations — 4 pillars x 4 tiers x 3 action items
 # ---------------------------------------------------------------------------
 
-PILLAR_ROADMAPS = {
+RECOMMENDATIONS = {
     "p1": {
-        "low": [
-            "Appoint a named Data Protection Officer (or equivalent role) with a written mandate, "
-            "even if part-time. The absence of a named owner is the single most common governance "
-            "gap at this stage.",
-            "Draft a one-page data sharing protocol as an immediate interim measure. It does not "
-            "need to be comprehensive — it needs to exist. A simple checklist covering: who "
-            "authorises, what legal basis applies, and whether the institution retains a copy of "
-            "what was shared.",
-            "Commission a regulatory mapping exercise against the applicable national regime "
-            "(NDPR, Ghana DPA, Kenya PDPA, or equivalent). This produces the evidence base on "
-            "which all subsequent compliance activity depends.",
+        "Emerging": [
+            "Begin a basic data inventory this term: list every form of student, staff, and "
+            "operational data your institution collects (paper or digital), where it is stored, "
+            "and who can access it. A spreadsheet is sufficient to start.",
+            "Designate one staff member — ideally a senior administrator — as the institution's "
+            "data steward. Their role is to be the single point of accountability for data "
+            "quality and access decisions.",
+            "Identify the three most important datasets at your institution (e.g., enrolment, "
+            "attendance, results) and document a one-page standard for how each is recorded "
+            "and maintained.",
         ],
-        "mid": [
-            "Formalise your policy lifecycle: assign version numbers, review dates, and a named "
-            "approver to each policy document. Policy drift — where documents exist but are never "
-            "updated — is the dominant failure mode at the Developing tier.",
-            "Introduce a quarterly consent audit: randomly sample 10% of consent records and "
-            "verify they are complete, purpose-linked, and accessible. This converts a "
-            "point-in-time compliance activity into a continuous one.",
-            "Document and test your incident escalation path at least annually. Walk through a "
-            "hypothetical breach scenario with relevant staff — the gaps in the walk-through "
-            "become your next action items.",
+        "Developing": [
+            "Convert your data inventory into a working data dictionary that all relevant staff "
+            "can access. Include data definitions, retention periods, and access permissions.",
+            "Establish a quarterly data quality check: a 30-minute review of completeness and "
+            "accuracy in your three priority datasets, with documented corrections.",
+            "Run a 'vendor exit' exercise: pick one digital tool you use and confirm you could "
+            "export all your data from it in under one week. Document the export process.",
         ],
-        "high": [
-            "Extend AI-specific procurement governance: require an AI impact statement for any "
-            "tool that processes student or staff data automatically. This is the governance "
-            "frontier for institutions already strong on foundational policy.",
-            "Engage proactively with your national data regulator — attend consultations, respond "
-            "to guidance documents. Institutions at the Mature tier shape sector norms rather "
-            "than only responding to them.",
-            "Review whether your governance framework explicitly addresses generative AI use by "
-            "staff and students — a category most African institution policies do not yet cover.",
+        "Established": [
+            "Automate routine data quality checks where possible (e.g., flagging missing fields "
+            "or outlier values on entry). For paper-based systems, build the check into the "
+            "weekly admin workflow.",
+            "Document inter-departmental data agreements that clarify who owns which datasets "
+            "and who has authority to grant access — especially across teaching, finance, and "
+            "pastoral care.",
+            "Pilot a data portability test with a new vendor: require that any new system commit "
+            "in writing to data export in standard formats before procurement.",
+        ],
+        "Leading": [
+            "Publish an annual internal data report to staff and governors covering data quality, "
+            "access events, and any incidents. Treat transparency as a feature of strong "
+            "data culture.",
+            "Contribute to sector-wide standards: share your data dictionary template with peer "
+            "institutions or your education association, and adopt incoming improvements.",
+            "Evaluate emerging school data platforms aligned with Ghana's National AI Strategy "
+            "2025-2035 'data as national asset' pillar or NaCCA standards, and pilot one that "
+            "strengthens interoperability with national education systems.",
         ],
     },
     "p2": {
-        "low": [
-            "Conduct a data audit before investing in any new system. Produce a one-page "
-            "inventory of what data the institution holds, in what format, and where. You "
-            "cannot improve what you have not mapped.",
-            "Select one core dataset — student enrolment records are the typical starting point "
-            "— and establish a data quality baseline: completeness, accuracy, and uniqueness. "
-            "Prioritise a single dataset rather than attempting institution-wide remediation.",
-            "Assign data ownership for your top three datasets by naming a role (not a "
-            "department) responsible for each. Data owned by everyone is owned by no-one.",
+        "Emerging": [
+            "Draft a one-page institutional data protection policy this term covering: what data "
+            "is collected, why, who can access it, how long it is kept, and how someone can "
+            "request their data. Adapt from your national regulator's template (Ghana DPC or "
+            "Nigeria NDPC).",
+            "Begin the registration process with your national data protection authority: Ghana's "
+            "Data Protection Commission under the Data Protection Act, 2012 (Act 843), or "
+            "Nigeria's Data Protection Commission under NDPA 2023 / GAID 2025.",
+            "Build a basic consent statement into all new data-collection forms (enrolment, "
+            "parental contact, photo permissions) that clearly states purpose and who controls "
+            "the data.",
         ],
-        "mid": [
-            "Build a minimal data dictionary covering the 10–15 data fields most frequently "
-            "used across systems. Agree on shared definitions for key identifiers — particularly "
-            "student ID — to enable cross-system linkage.",
-            "Test data portability from your primary student information system: attempt a full "
-            "export in CSV or JSON without vendor assistance. Document the result. Vendor lock-in "
-            "on data portability is a common constraint discovered only at migration time.",
-            "Assess your most important datasets against a simple AI-readiness checklist: Is the "
-            "data structured? Is it labelled? Is it complete enough (>80% of records)? Is its "
-            "quality documented? This produces an honest substrate readiness profile.",
+        "Developing": [
+            "Conduct a privacy walkthrough: for every digital tool in use, document what personal "
+            "data flows into it, where the vendor stores it, and what your contract says about "
+            "access and deletion.",
+            "Develop and test a basic incident response procedure: who is called first if data "
+            "is compromised, what is documented, and what is communicated to affected people.",
+            "If operating in Nigeria, begin scoping a Data Protection Impact Assessment (DPIA) "
+            "for your highest-risk system, as required by GAID 2025. If in Ghana, prepare your "
+            "DPC Privacy Seal application materials.",
         ],
-        "high": [
-            "Implement automated data quality monitoring: set threshold alerts for completeness "
-            "and consistency on your core datasets, reviewed at least monthly. Manual quality "
-            "checking does not scale as data volumes grow.",
-            "Establish data portability provisions in all new vendor contracts: require that data "
-            "be exportable in open formats within 30 days of request termination, at no "
-            "additional cost.",
-            "Document AI-readiness profiles for each major dataset: what use cases they can "
-            "support, what enrichment would extend their utility, and what quality gaps require "
-            "monitoring. This is the substrate documentation on which AI procurement decisions "
-            "should rest.",
+        "Established": [
+            "Establish a small data governance committee (3-4 people including a senior leader, "
+            "a teacher, and an administrator) that meets termly to review policy compliance "
+            "and incidents.",
+            "Run an annual privacy training for all staff handling student or parent data. "
+            "Document attendance and refresh content yearly.",
+            "Designate a Data Protection Officer or named privacy lead with a written role "
+            "description, and ensure their work is reflected in semi-annual compliance reporting "
+            "(GAID 2025 requirement in Nigeria).",
+        ],
+        "Leading": [
+            "Publish a public-facing privacy notice that clearly explains data practices in "
+            "language accessible to parents and students. Make it available on your institution's "
+            "website or main entry point.",
+            "Beyond regulatory compliance, develop institutional ethical guidelines for data use "
+            "that reflect your school's community values (e.g., commitments around children's "
+            "data, family privacy, or vulnerable students).",
+            "Lead or contribute to sector-wide convenings on school data governance, partnering "
+            "with national regulators, peer schools, or civil society organisations working on "
+            "children's data rights.",
         ],
     },
     "p3": {
-        "low": [
-            "Secure an explicit, minuted leadership endorsement of a digital or AI direction — "
-            "even a one-paragraph position statement. Leadership alignment is not a precondition "
-            "for all capacity work, but its absence reliably limits how far other investments "
-            "travel.",
-            "Identify one or two internal staff with adjacent technical skills (data analysis, "
-            "ICT support, statistics) and invest in targeted upskilling rather than external "
-            "recruitment. Building internal champions is typically faster and more durable than "
-            "hiring in a competitive market.",
-            "Before introducing any new AI or data tool, document the change in two paragraphs: "
-            "what is changing, who it affects, and how staff can raise concerns. This is the "
-            "minimum viable change communication — it normalises the expectation of transparency.",
+        "Emerging": [
+            "Before considering any AI tool, write a one-page document answering: what problem "
+            "are we trying to solve, who benefits, and what would success look like? Many AI "
+            "projects fail because this step is skipped.",
+            "Conduct a basic readiness audit: do you have reliable data (Pillar 1), governance "
+            "in place (Pillar 2), and the staff capacity to oversee AI tools? If any answer is "
+            "no, address those first.",
+            "Educate your leadership team on what AI can and cannot do. Aim for one 90-minute "
+            "literacy session this term that includes realistic cost, timeline, and "
+            "failure-mode discussion.",
         ],
-        "mid": [
-            "Develop a technology training plan tied to the institution's actual tool portfolio "
-            "rather than generic digital literacy. Training is most effective when staff can "
-            "apply it to systems they use within the following week.",
-            "Map human-AI workflow boundaries for any AI tool currently in use: for each tool, "
-            "answer three questions — what does the AI decide? What does the human decide? What "
-            "happens when they disagree? Ambiguity here is the root cause of most AI adoption "
-            "failures in education.",
-            "Introduce a biannual AI readiness self-check at the senior leadership level: one "
-            "structured conversation about what is working, what is not, and what the next "
-            "capability gap is. This prevents strategy documents from becoming shelf documents.",
+        "Developing": [
+            "Draft a one-to-two page institutional AI strategy that names: priority use-cases, "
+            "success metrics, who owns AI decisions, and what is explicitly out of scope.",
+            "Build internal capacity through one of three routes: train an existing technical "
+            "staff member, partner with a local AI-literate consultant, or join a community of "
+            "practice with peer institutions.",
+            "Pilot one small, low-risk AI use case (e.g., administrative scheduling, content "
+            "drafting) with clear evaluation criteria. Document what worked, what did not, and "
+            "what was learned about your institutional readiness.",
         ],
-        "high": [
-            "Build succession planning for technical roles into your HR processes: for each key "
-            "technical role supporting AI or data systems, document a backup and a development "
-            "pathway. Single-person dependencies are a systemic risk.",
-            "Commission or conduct external benchmarking of your organisational capacity against "
-            "two or three peer institutions. Internal self-assessment is subject to blind spots "
-            "that only external reference points can reveal.",
-            "Formalise a feedback loop from operational staff to AI strategy: create a structured "
-            "mechanism (survey, working group, or forum) for frontline users of AI tools to "
-            "report friction, errors, and concerns upward to decision-makers.",
+        "Established": [
+            "Institutionalise AI procurement standards: require any AI vendor to disclose "
+            "training data sources, intended use, known limitations, and data storage location "
+            "before procurement.",
+            "Develop a use-case evaluation framework: a short checklist your AI committee uses "
+            "to screen new ideas for feasibility, alignment with strategy, and proportionality "
+            "of risk.",
+            "Align your AI plans with Ghana's National AI Strategy 2025-2035 four pillars "
+            "(data, compute, talent, governance) or relevant Nigerian frameworks to position "
+            "your institution for sector partnerships and funding.",
+        ],
+        "Leading": [
+            "Scale your most successful AI pilot to a second use-case or department, with "
+            "documented lessons learned and clear stop conditions.",
+            "Contribute to sector knowledge: publish a case study, present at a conference, or "
+            "share your evaluation framework with peer institutions or your national AI strategy "
+            "implementation group.",
+            "Establish strategic partnerships with African research institutions, universities, "
+            "or AI organisations to keep your institution at the frontier of responsible AI "
+            "in education.",
         ],
     },
     "p4": {
-        "low": [
-            "Add a bias awareness question to your AI procurement checklist as an immediate "
-            "interim measure: for any AI tool, ask the vendor to state what training data was "
-            "used and whether bias testing was conducted. The question itself signals "
-            "institutional intent even before a formal process exists.",
-            "Identify who in the institution would handle a complaint from a student or parent "
-            "who believed an AI-assisted decision was unfair. If there is no answer, creating "
-            "one is the single highest-priority ethics action at this stage.",
-            "Add a plain-language description of how each AI tool in current use makes its "
-            "outputs, accessible to all staff who use those outputs. This does not require "
-            "technical expertise — it requires that someone who understands it writes it down "
-            "for those who do not.",
+        "Emerging": [
+            "Before deploying any AI tool, establish a basic accountability map: name the person "
+            "who can override the AI, name the person who can be appealed to, and document "
+            "both in writing.",
+            "Conduct a simple fairness check on any AI tool already in use: ask whether outcomes "
+            "differ across student groups (gender, language background, ability) and document "
+            "what you find.",
+            "Write a one-page statement of AI limitations for your institution: what the AI tool "
+            "you use can do well, what it cannot do, and what kinds of decisions must always "
+            "remain human.",
         ],
-        "mid": [
-            "Formalise a bias assessment process for AI tool procurement: require vendors to "
-            "provide demographic breakdown of training data and results of any bias testing. "
-            "Document the assessment and its outcome in the procurement record.",
-            "Develop a structured consultation process for AI policy development that includes "
-            "at least one student representative, one frontline teaching staff member, and one "
-            "parent or community voice. Consultative legitimacy at this tier is more about "
-            "structure than scale.",
-            "Review whether equity impact assessment is applied consistently across all AI "
-            "deployments — not just flagship projects. Equity gaps most frequently appear in "
-            "secondary deployments that did not receive the same scrutiny as initial rollouts.",
+        "Developing": [
+            "Implement an explainability requirement: any staff member using an AI tool to inform "
+            "a decision must be able to explain in plain language why the AI gave that output. "
+            "Test this with a real example.",
+            "Establish a human-in-the-loop policy for all AI-influenced decisions affecting "
+            "students (placement, performance flags, support recommendations). Require documented "
+            "human review before any consequential action.",
+            "Train all staff who use AI tools on responsible deployment principles, including "
+            "bias, limitations, and the appeals process. Document training in personnel records.",
         ],
-        "high": [
-            "Establish a standing ethics review body — even a lightweight quarterly meeting "
-            "with a documented remit — that has explicit authority to pause or modify an AI "
-            "implementation on ethical grounds. Authority without a process is unenforceable.",
-            "Implement post-deployment bias monitoring for all AI tools that produce outputs "
-            "affecting students: track whether outcomes differ systematically by gender, "
-            "geography, disability status, or socioeconomic background, and review quarterly.",
-            "Engage with sector-level AI ethics networks (UNESCO, continental or national "
-            "bodies) and share your institution's ethics practice externally. Mature ethics "
-            "infrastructure is characterised by contribution to collective norms, not only "
-            "internal compliance.",
+        "Established": [
+            "Integrate responsible AI checks into your standard project review process: every "
+            "new AI deployment gets a responsibility review before launch.",
+            "Establish a documented appeals process: how students, parents, or staff can formally "
+            "challenge an AI-influenced decision, who reviews the challenge, and what the "
+            "timeline is for a response.",
+            "Monitor AI systems in active use: review outputs quarterly for fairness drift, "
+            "accuracy decline, or emerging issues. Document and respond to what you find.",
+        ],
+        "Leading": [
+            "Embed responsible AI in your institutional identity, not just your policies. "
+            "Communicate it externally to parents, the community, and prospective partners as "
+            "part of how your institution operates.",
+            "Contribute to the field: share frameworks, evaluation tools, or training materials "
+            "with peer institutions, research bodies, or national education authorities working "
+            "on AI in schools.",
+            "Lead advocacy on responsible AI in education, particularly as it affects vulnerable "
+            "populations. Partner with civil society, national regulators, or bodies aligned "
+            "with the Africa Declaration on AI (Kigali, 4 April 2025) on policy positions.",
         ],
     },
 }
 
+# ---------------------------------------------------------------------------
+# Privacy notice paragraphs (displayed on consent screen)
+# ---------------------------------------------------------------------------
+
+PRIVACY_NOTICE_PARAGRAPHS = [
+    (
+        "This diagnostic is operated by **Tech-Kative** (Accra, Ghana). "
+        "When you complete the diagnostic, the following information is stored: "
+        "your organisation name, type, country, and your role; your responses to all "
+        "diagnostic questions; the maturity scores calculated from your responses; "
+        "and the date and time of completion."
+    ),
+    (
+        "**What we do with this data:** Generate your personalised HTML report; produce "
+        "anonymous aggregated insights for research on AI readiness in African education; "
+        "and (if a valid pilot code is entered) use the data for the "
+        "Tech-Kative x Standbasis joint pilot research."
+    ),
+    (
+        "**What we do NOT do:** Share your individual responses with any third party; "
+        "use your data for marketing; or store any personal identifying information "
+        "beyond what you provide."
+    ),
+    (
+        "**Your rights:** You may request deletion of your data at any time by emailing "
+        "info@techkative.com. "
+        "For Ghana respondents: this collection is conducted in alignment with the "
+        "Data Protection Act, 2012 (Act 843). "
+        "For Nigeria respondents: this collection is conducted in alignment with "
+        "NDPA 2023 / GAID 2025."
+    ),
+    (
+        "By proceeding, you confirm that you have authority to complete this diagnostic "
+        "on behalf of your institution."
+    ),
+]
 
 # ---------------------------------------------------------------------------
-# Convenience helpers used by other modules
+# Convenience helpers
 # ---------------------------------------------------------------------------
 
 def get_pillar(pillar_id: str) -> dict:
@@ -1004,24 +652,29 @@ def get_pillar(pillar_id: str) -> dict:
     raise KeyError(f"Unknown pillar id: {pillar_id}")
 
 
-def get_item(item_id: str) -> dict:
-    for p in PILLARS:
-        for item in p["items"]:
-            if item["id"] == item_id:
-                return item
-    raise KeyError(f"Unknown item id: {item_id}")
+def get_question(question_id: str) -> dict:
+    for q in QUESTIONS:
+        if q["id"] == question_id:
+            return q
+    raise KeyError(f"Unknown question id: {question_id}")
 
 
-def all_item_ids() -> list[str]:
-    return [item["id"] for p in PILLARS for item in p["items"]]
+def get_questions_for_user(country: str) -> list:
+    """Universal questions plus country-matched questions."""
+    return [q for q in QUESTIONS if q["country"] is None or q["country"] == country]
 
 
-def items_for_pillar(pillar_id: str) -> list[dict]:
-    return get_pillar(pillar_id)["items"]
+def get_scored_questions(country: str) -> list:
+    """Questions that contribute to scores (excludes open_text)."""
+    return [q for q in get_questions_for_user(country) if q["type"] != "open_text"]
 
 
-def get_tier(composite: float) -> dict:
+def all_scored_question_ids(country: str) -> list:
+    return [q["id"] for q in get_scored_questions(country)]
+
+
+def get_tier(score: float) -> dict:
     for tier in TIERS:
-        if tier["min"] <= composite <= tier["max"]:
+        if tier["min"] <= score <= tier["max"]:
             return tier
     return TIERS[-1]
