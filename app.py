@@ -666,8 +666,8 @@ def screen_review():
     st.markdown("## Review Your Responses")
     st.markdown(
         f'<p style="font-size:14px;font-style:italic;color:{styles.MUTED};line-height:1.7;">'
-        "Check your responses below. Click <strong>Edit pillar</strong> next to any section heading "
-        "to return and change your answers. When satisfied, submit to receive your profile."
+        "Check your responses below. Click <strong>Edit</strong> beside any answer to change it — "
+        "you will be taken back here automatically after saving. When satisfied, submit to receive your profile."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -700,11 +700,13 @@ def screen_review():
                 state.set_navigation_target("review")
                 state.go_to_item(pillar_first_global)
 
-        # Priority 1 — show full question text + answer
+        # Per-question rows with individual Edit buttons
         for q in pqs:
-            stored = responses.get(q["id"])
+            stored       = responses.get(q["id"])
+            q_global_idx = next(i for i, uq in enumerate(user_qs) if uq["id"] == q["id"])
+
             if q["type"] == "open_text":
-                answer_text = stored[:100] + "…" if stored and len(stored) > 100 else (stored or "Not answered (optional)")
+                answer_text   = stored[:100] + "…" if stored and len(stored) > 100 else (stored or "Not answered (optional)")
                 answer_colour = styles.MUTED
             elif stored:
                 answer_text   = stored
@@ -713,17 +715,22 @@ def screen_review():
                 answer_text   = "Not yet answered"
                 answer_colour = "#c0392b"
 
-            st.markdown(
-                f'<div style="padding:10px 0 10px 13px;border-bottom:1px solid {styles.BORDER};'
-                f'border-left:2px solid {colour}22;">'
-                f'<div style="font-size:12px;color:{styles.MUTED};line-height:1.5;margin-bottom:4px;">'
-                f'{q["text"]}'
-                f'</div>'
-                f'<div style="font-size:13px;font-weight:600;color:{answer_colour};">'
-                f'{answer_text}'
-                f'</div></div>',
-                unsafe_allow_html=True,
-            )
+            col_q, col_edit = st.columns([9, 1])
+            with col_q:
+                st.markdown(
+                    f'<div style="padding:10px 0 10px 13px;border-bottom:1px solid {styles.BORDER};'
+                    f'border-left:2px solid {colour}22;">'
+                    f'<div style="font-size:12px;color:{styles.MUTED};line-height:1.5;margin-bottom:4px;">'
+                    f'{q["text"]}</div>'
+                    f'<div style="font-size:13px;font-weight:600;color:{answer_colour};">'
+                    f'{answer_text}</div></div>',
+                    unsafe_allow_html=True,
+                )
+            with col_edit:
+                st.markdown("<div style='padding-top:18px;'></div>", unsafe_allow_html=True)
+                if st.button("Edit", key=f"edit_q_{q['id']}"):
+                    state.set_navigation_target("review")
+                    state.go_to_item(q_global_idx)
 
     st.markdown("<br>", unsafe_allow_html=True)
 

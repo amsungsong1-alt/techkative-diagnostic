@@ -86,7 +86,7 @@ def _pillar_tile(pillar_id: str, score: float, tier: str = "") -> str:
 
 
 def _radar_svg(pillar_scores: dict) -> str:
-    W, H = 400, 400
+    W, H = 520, 520
     cx, cy = W // 2, H // 2
     r_max = 130
     pids         = ["p1", "p2", "p3", "p4"]
@@ -127,7 +127,7 @@ def _radar_svg(pillar_scores: dict) -> str:
         x, y = pt(angle, frac)
         dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{colour}"/>\n'
 
-    label_offset = 1.30
+    label_offset = 1.35
     labels = ""
     for label, angle, colour, pid in zip(full_labels, angles, colours, pids):
         lx, ly = pt(angle, label_offset)
