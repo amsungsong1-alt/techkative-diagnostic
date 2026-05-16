@@ -684,23 +684,13 @@ def screen_review():
         if not pqs:
             continue
 
-        # Priority 1 — per-pillar Edit button in header; Priority 2 — set navigation_target
-        pillar_first_global = next(i for i, q in enumerate(user_qs) if q["pillar_id"] == pillar["id"])
-        col_head, col_edit_pillar = st.columns([5, 1])
-        with col_head:
-            st.markdown(
-                f'<div style="font-size:14px;font-weight:700;color:{colour};'
-                f'margin:20px 0 4px;border-left:3px solid {colour};padding-left:10px;">'
-                f'{pillar["name"]} — {len(pqs)} questions</div>',
-                unsafe_allow_html=True,
-            )
-        with col_edit_pillar:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Edit pillar", key=f"edit_pillar_{pillar['id']}"):
-                state.set_navigation_target("review")
-                state.go_to_item(pillar_first_global)
+        st.markdown(
+            f'<div style="font-size:14px;font-weight:700;color:{colour};'
+            f'margin:20px 0 4px;border-left:3px solid {colour};padding-left:10px;">'
+            f'{pillar["name"]} — {len(pqs)} questions</div>',
+            unsafe_allow_html=True,
+        )
 
-        # Per-question rows with individual Edit buttons
         for q in pqs:
             stored       = responses.get(q["id"])
             q_global_idx = next(i for i, uq in enumerate(user_qs) if uq["id"] == q["id"])
@@ -715,7 +705,7 @@ def screen_review():
                 answer_text   = "Not yet answered"
                 answer_colour = "#c0392b"
 
-            col_q, col_edit = st.columns([9, 1])
+            col_q, col_edit = st.columns([8, 2], vertical_alignment="center")
             with col_q:
                 st.markdown(
                     f'<div style="padding:10px 0 10px 13px;border-bottom:1px solid {styles.BORDER};'
@@ -727,8 +717,7 @@ def screen_review():
                     unsafe_allow_html=True,
                 )
             with col_edit:
-                st.markdown("<div style='padding-top:18px;'></div>", unsafe_allow_html=True)
-                if st.button("Edit", key=f"edit_q_{q['id']}"):
+                if st.button("Edit", key=f"edit_q_{q['id']}", use_container_width=True):
                     state.set_navigation_target("review")
                     state.go_to_item(q_global_idx)
 
