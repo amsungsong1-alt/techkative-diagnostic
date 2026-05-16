@@ -7,6 +7,7 @@ correct screen based on st.session_state.screen.
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from email_service import send_all
 from framework import (
     COUNTRY_OPTIONS,
     INSTITUTION_TYPES,
+    PILLAR_INTRODUCTIONS,
     PILOT_CODES,
     PILLARS,
     PILLAR_ORDER,
@@ -118,6 +120,41 @@ def _pilot_banner():
             f'</div>',
             unsafe_allow_html=True,
         )
+
+
+def _sidebar():
+    """Priority 5 — autosave indicator always visible in sidebar."""
+    with st.sidebar:
+        st.markdown(
+            f'<div style="font-size:13px;font-weight:700;color:{styles.NAVY};'
+            f'margin-bottom:8px;">Tech-Kative Diagnostic</div>',
+            unsafe_allow_html=True,
+        )
+        ts = st.session_state.get("last_saved_at")
+        if ts:
+            st.markdown(f"🟢 **Last saved:** {ts}")
+        else:
+            st.markdown("⚪ Not yet saved")
+
+
+# Priority 3 — recommendation priority colours (mirrored from report.py for Streamlit display)
+_REC_RED    = "#c0392b"
+_REC_AMBER  = "#d68910"
+_REC_GREEN  = "#239b56"
+_REC_PRIORITY_ORDER = {"RED": 0, "AMBER": 1, "GREEN": 2}
+_REC_RED_TRIGGERS = {
+    "Act 843", "§27", "NDPC", "DPO", "DPC Privacy Seal",
+    "GAID 2025", "DPIA", "Africa Declaration", "sovereignty", "data sovereignty",
+}
+
+def _rec_priority(item_text: str, tier: str) -> tuple:
+    if tier == "Emerging":
+        return ("RED", _REC_RED, "High Priority")
+    if any(t in item_text for t in _REC_RED_TRIGGERS):
+        return ("RED", _REC_RED, "High Priority")
+    if tier == "Developing":
+        return ("AMBER", _REC_AMBER, "Medium Priority")
+    return ("GREEN", _REC_GREEN, "Low Priority")
 
 
 def _pillar_pill(pillar: dict):
@@ -316,19 +353,31 @@ def screen_profile():
     )
     _field_error("institution_type")
 
-    # Country as selectbox (needed for conditional question logic)
+    # Country — locked after assessment begins (Priority 11)
     current_country = prof.get("country", "")
-    country_index = (
-        COUNTRY_OPTIONS.index(current_country) + 1
-        if current_country in COUNTRY_OPTIONS
-        else 0
-    )
-    country = st.selectbox(
-        "Country *",
-        options=["— Select —"] + COUNTRY_OPTIONS,
-        index=country_index,
-    )
-    _field_error("country")
+    country_locked  = bool(state.get_response("df_1"))
+    if country_locked:
+        country = current_country
+        st.markdown(
+            f'<div style="margin-bottom:8px;">'
+            f'<label style="font-size:14px;font-weight:600;color:{styles.SLATE};">Country</label><br>'
+            f'<span style="font-size:14px;color:{styles.SLATE};">{country}</span> '
+            f'<span style="font-size:12px;color:{styles.MUTED};">(locked after assessment begins)</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        country_index = (
+            COUNTRY_OPTIONS.index(current_country) + 1
+            if current_country in COUNTRY_OPTIONS
+            else 0
+        )
+        country = st.selectbox(
+            "Country *",
+            options=["— Select —"] + COUNTRY_OPTIONS,
+            index=country_index,
+        )
+        _field_error("country")
 
     contact_name = st.text_input(
         "Your name",
@@ -395,7 +444,7 @@ def screen_profile():
             new_errors["institution_name"] = "Institution name is required."
         if institution_type == "— Select —":
             new_errors["institution_type"] = "Please select an institution type."
-        if country == "— Select —":
+        if not country_locked and country == "— Select —":
             new_errors["country"] = "Please select a country."
         if not contact_email.strip():
             new_errors["contact_email"] = "Email address is required."
@@ -433,6 +482,7 @@ def screen_profile():
 def screen_assessment():
     _header()
     _pilot_banner()
+    _sidebar()
 
     country      = state.get_profile().get("country", "")
     user_qs      = get_questions_for_user(country)
@@ -449,15 +499,22 @@ def screen_assessment():
     pillar   = get_pillar(question["pillar_id"])
     colour   = pillar["colour"]
 
-    # ── Progress ──────────────────────────────────────────────────────────
+    # Priority 7 — first question index in this pillar
+    pillar_first_index = next(
+        i for i, q in enumerate(user_qs) if q["pillar_id"] == question["pillar_id"]
+    )
+    show_prev = item_index > pillar_first_index
+
+    # Priority 6 — progress bar with % complete
     answered = state.answered_count(country)
     total    = len(scored_qs)
+    pct_int  = int(answered / total * 100) if total else 0
     st.progress(answered / total if total else 0)
     st.markdown(
         f'<p style="font-size:12px;color:{styles.MUTED};margin-top:4px;">'
-        f'<strong>{answered}</strong> of {total} scored items answered'
-        f' &nbsp;·&nbsp; Question {item_index + 1} of {len(user_qs)}'
-        f' &nbsp;·&nbsp; Pillar: {pillar["name"]}'
+        f"Question {item_index + 1} of {len(user_qs)}"
+        f" &nbsp;·&nbsp; <strong>{answered} of {total}</strong> scored answered"
+        f" ({pct_int}% complete)"
         f"</p>",
         unsafe_allow_html=True,
     )
@@ -473,6 +530,12 @@ def screen_assessment():
             f"Optional — not scored</span>",
             unsafe_allow_html=True,
         )
+
+    # Priority 8 — pillar intro on first question of each pillar
+    if item_index == pillar_first_index:
+        intro = PILLAR_INTRODUCTIONS.get(question["pillar_id"], "")
+        if intro:
+            st.info(intro)
 
     # ── Question text ─────────────────────────────────────────────────────
     st.markdown(f"### {question['text']}")
@@ -502,28 +565,45 @@ def screen_assessment():
             label_visibility="collapsed",
         )
 
-    else:  # open_text
+    else:  # open_text — Priority 9
         selected = st.text_area(
             "Your response (optional):",
             value=stored or "",
             key=f"text_{qid}",
             height=120,
+            max_chars=400,
+            help="Optional. 1-3 sentences is ideal.",
             label_visibility="collapsed",
             placeholder="Type your response here (not scored — for report context only).",
         )
+        st.caption(f"{len(selected or '')} / 400 characters")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # ── Navigation ────────────────────────────────────────────────────────
-    col_prev, col_next = st.columns(2)
-    with col_prev:
-        prev_label = "← Previous" if item_index > 0 else "← Back to Profile"
-        prev_btn = st.button(prev_label, key="btn_prev", type="secondary", use_container_width=True)
-    with col_next:
-        is_last = item_index >= len(user_qs) - 1
-        next_label = "Continue →" if not is_last else "Review Responses →"
-        next_btn = st.button(next_label, key="btn_next", type="primary", use_container_width=True)
+    # Priority 2 — smart Continue button label
+    came_from_review = state.get_navigation_target() == "review"
+    is_last = item_index >= len(user_qs) - 1
+
+    if came_from_review:
+        next_label = "Save & Return to Review →"
+    elif is_last:
+        next_label = "Review Responses →"
+    else:
+        next_label = "Continue →"
+
+    # ── Navigation — Priority 7 (Previous only within pillar) ────────────
+    if show_prev:
+        col_prev, col_next = st.columns(2)
+        with col_prev:
+            prev_btn = st.button("← Previous", key="btn_prev", type="secondary", use_container_width=True)
+        with col_next:
+            next_btn = st.button(next_label, key="btn_next", type="primary", use_container_width=True)
+    else:
+        col_next_only = st.columns([1])[0]
+        with col_next_only:
+            next_btn = st.button(next_label, key="btn_next", type="primary", use_container_width=True)
+        prev_btn = False
 
     # ── Button handlers ───────────────────────────────────────────────────
     if next_btn:
@@ -531,21 +611,27 @@ def screen_assessment():
         if is_scored and selected is None:
             st.error("Please select one of the options above before continuing.")
         else:
-            # Save (even empty text for open-text)
             if selected or question["type"] == "open_text":
                 state.set_response(qid, selected)
-            if is_last:
+                state.set_last_saved()  # Priority 5
+
+            # Priority 2 — check if current pillar is now complete
+            pillar_qs_scored = [q for q in scored_qs if q["pillar_id"] == question["pillar_id"]]
+            if all(state.get_response(q["id"]) for q in pillar_qs_scored):
+                state.mark_pillar_complete(question["pillar_id"])
+
+            if came_from_review:
+                state.clear_navigation_target()
+                state.go("review")
+            elif is_last:
                 state.go("review")
             else:
                 state.set_item_index(item_index + 1)
                 st.rerun()
 
     if prev_btn:
-        if item_index == 0:
-            state.go("profile")
-        else:
-            state.set_item_index(item_index - 1)
-            st.rerun()
+        state.set_item_index(item_index - 1)
+        st.rerun()
 
     # ── Save Draft ────────────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
@@ -569,6 +655,7 @@ def screen_assessment():
 def screen_review():
     _header()
     _pilot_banner()
+    _sidebar()
     st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown(
@@ -579,57 +666,64 @@ def screen_review():
     st.markdown("## Review Your Responses")
     st.markdown(
         f'<p style="font-size:14px;font-style:italic;color:{styles.MUTED};line-height:1.7;">'
-        "Check your responses below. Select Edit on any item to change your answer. "
-        "When satisfied, submit the assessment to receive your profile."
+        "Check your responses below. Click <strong>Edit pillar</strong> next to any section heading "
+        "to return and change your answers. When satisfied, submit to receive your profile."
         "</p>",
         unsafe_allow_html=True,
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    country  = state.get_profile().get("country", "")
-    user_qs  = get_questions_for_user(country)
+    country   = state.get_profile().get("country", "")
+    user_qs   = get_questions_for_user(country)
     responses = st.session_state.responses
 
-    global_index = 0
     for pillar in PILLARS:
-        colour  = pillar["colour"]
-        pqs     = [q for q in user_qs if q["pillar_id"] == pillar["id"]]
-        st.markdown(
-            f'<div style="font-size:12px;font-weight:700;text-transform:uppercase;'
-            f'letter-spacing:0.07em;color:{colour};margin:20px 0 8px;">'
-            f"{pillar['name']} — {len(pqs)} questions</div>",
-            unsafe_allow_html=True,
-        )
+        colour = pillar["colour"]
+        pqs    = [q for q in user_qs if q["pillar_id"] == pillar["id"]]
+        if not pqs:
+            continue
+
+        # Priority 1 — per-pillar Edit button in header; Priority 2 — set navigation_target
+        pillar_first_global = next(i for i, q in enumerate(user_qs) if q["pillar_id"] == pillar["id"])
+        col_head, col_edit_pillar = st.columns([5, 1])
+        with col_head:
+            st.markdown(
+                f'<div style="font-size:14px;font-weight:700;color:{colour};'
+                f'margin:20px 0 4px;border-left:3px solid {colour};padding-left:10px;">'
+                f'{pillar["name"]} — {len(pqs)} questions</div>',
+                unsafe_allow_html=True,
+            )
+        with col_edit_pillar:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Edit pillar", key=f"edit_pillar_{pillar['id']}"):
+                state.set_navigation_target("review")
+                state.go_to_item(pillar_first_global)
+
+        # Priority 1 — show full question text + answer
         for q in pqs:
             stored = responses.get(q["id"])
             if q["type"] == "open_text":
-                answered_flag = "(optional)"
-                option_label  = stored[:80] + "…" if stored and len(stored) > 80 else (stored or "Not answered")
+                answer_text = stored[:100] + "…" if stored and len(stored) > 100 else (stored or "Not answered (optional)")
+                answer_colour = styles.MUTED
             elif stored:
-                answered_flag = "✓"
-                option_label  = stored
+                answer_text   = stored
+                answer_colour = styles.PRIMARY
             else:
-                answered_flag = "—"
-                option_label  = "Not yet answered"
+                answer_text   = "Not yet answered"
+                answer_colour = "#c0392b"
 
-            col_content, col_edit = st.columns([5, 1])
-            with col_content:
-                st.markdown(
-                    f'<div style="padding:8px 0;border-bottom:1px solid {styles.BORDER};">'
-                    f'<div style="font-size:12px;font-weight:700;color:{styles.MUTED};">'
-                    f"{q['id']} &nbsp;·&nbsp; "
-                    f'<span style="color:{colour};">[{answered_flag}]</span>'
-                    f"</div>"
-                    f'<div style="font-size:12px;color:{styles.SLATE};margin-top:3px;">'
-                    f"{option_label}"
-                    f"</div></div>",
-                    unsafe_allow_html=True,
-                )
-            with col_edit:
-                if st.button("Edit", key=f"edit_{q['id']}"):
-                    state.go_to_item(global_index)
-            global_index += 1
+            st.markdown(
+                f'<div style="padding:10px 0 10px 13px;border-bottom:1px solid {styles.BORDER};'
+                f'border-left:2px solid {colour}22;">'
+                f'<div style="font-size:12px;color:{styles.MUTED};line-height:1.5;margin-bottom:4px;">'
+                f'{q["text"]}'
+                f'</div>'
+                f'<div style="font-size:13px;font-weight:600;color:{answer_colour};">'
+                f'{answer_text}'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -708,35 +802,59 @@ _TIER_BAND_LABELS = {
 
 def _render_recommendations(recommendations: dict) -> None:
     st.markdown("### Recommended Actions by Pillar")
+    # Priority 3 — priority legend
     st.markdown(
-        f'<p style="font-size:14px;font-style:italic;color:{styles.MUTED};margin-bottom:16px;">'
-        "The following actions are calibrated to your score in each pillar. "
-        "Select one or two per pillar and complete them before adding more."
-        "</p>",
+        f'<div style="margin-bottom:16px;padding:10px 14px;background:{styles.WASH};'
+        f'border-radius:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'
+        f'<span style="font-size:11px;font-weight:700;text-transform:uppercase;'
+        f'letter-spacing:0.06em;color:{styles.MUTED};margin-right:12px;">Priority:</span>'
+        f'<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;'
+        f'color:{styles.SLATE};margin-right:14px;">'
+        f'<span style="width:12px;height:12px;border-radius:2px;background:{_REC_RED};'
+        f'display:inline-block;"></span>High</span>'
+        f'<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;'
+        f'color:{styles.SLATE};margin-right:14px;">'
+        f'<span style="width:12px;height:12px;border-radius:2px;background:{_REC_AMBER};'
+        f'display:inline-block;"></span>Medium</span>'
+        f'<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;'
+        f'color:{styles.SLATE};">'
+        f'<span style="width:12px;height:12px;border-radius:2px;background:{_REC_GREEN};'
+        f'display:inline-block;"></span>Low</span>'
+        f'</div>',
         unsafe_allow_html=True,
     )
     for pid in PILLAR_ORDER:
         pillar = get_pillar(pid)
         colour = styles.PILLAR_COLOURS[pid]
-        r      = recommendations[pid]
+        r      = recommendations.get(pid, {})
+        if not r:
+            continue
+        tier  = r.get("tier", "")
+        items = r.get("items", [])
+        # Sort by priority: RED → AMBER → GREEN
+        classified = [(action, _rec_priority(action, tier)) for action in items]
+        classified.sort(key=lambda x: _REC_PRIORITY_ORDER[x[1][0]])
+
         st.markdown(
-            f'<div style="margin-bottom:24px;border-left:3px solid {colour};padding-left:16px;">'
-            f'<div style="font-size:12px;font-weight:700;text-transform:uppercase;'
-            f'letter-spacing:0.07em;color:{colour};margin-bottom:6px;">'
-            f'{pillar["name"]} &nbsp;·&nbsp; Score {r["score"]:.0f}'
-            f' &nbsp;·&nbsp; {r["tier"]}'
+            f'<div style="margin-bottom:6px;font-size:12px;font-weight:700;'
+            f'text-transform:uppercase;letter-spacing:0.07em;color:{colour};'
+            f'border-left:3px solid {colour};padding-left:10px;margin-top:20px;">'
+            f'{pillar["name"]} &nbsp;·&nbsp; Score {r.get("score", 0):.0f} &nbsp;·&nbsp; {tier}'
             f"</div>",
             unsafe_allow_html=True,
         )
-        for i, action in enumerate(r["items"], start=1):
+        for action, (priority_key, priority_colour, priority_label) in classified:
             st.markdown(
                 f'<div style="padding:10px 14px;background:{styles.WASH};border-radius:6px;'
-                f'margin-bottom:8px;font-size:13px;line-height:1.65;color:{styles.SLATE};">'
-                f'<strong style="color:{colour};">{i}.</strong> {action}'
+                f'margin-bottom:8px;font-size:13px;line-height:1.65;color:{styles.SLATE};'
+                f'border-left:4px solid {priority_colour};">'
+                f'<span style="font-size:10px;font-weight:700;text-transform:uppercase;'
+                f'letter-spacing:0.05em;color:{priority_colour};display:block;margin-bottom:4px;">'
+                f'{priority_label}</span>'
+                f'{action}'
                 f"</div>",
                 unsafe_allow_html=True,
             )
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_regulatory_flags(flags: list, country: str) -> None:
@@ -872,11 +990,11 @@ def screen_results():
 
     # ── Download ──────────────────────────────────────────────────────────
     if report_html:
-        fname = (
-            "tech-kative-diagnostic-"
-            + profile.get("institution_name", "report").lower().replace(" ", "-").replace(",", "")
-            + ".html"
-        )
+        _sidebar()
+        org_raw       = profile.get("institution_name", "report")
+        org_sanitized = re.sub(r"[^A-Za-z0-9]", "_", org_raw).strip("_") or "report"
+        date_str      = datetime.now().strftime("%Y%m%d")
+        fname         = f"TechKative_Diagnostic_{org_sanitized}_{date_str}.html"
         st.download_button(
             label="Download Report (HTML)",
             data=report_html.encode("utf-8"),
@@ -884,6 +1002,21 @@ def screen_results():
             mime="text/html",
             type="secondary",
         )
+        st.success("Report downloaded. Check your Downloads folder.")
+
+        user_email = profile.get("contact_email", "")
+        org_name   = profile.get("institution_name", "")
+        mailto = (
+            f"mailto:{user_email}"
+            f"?subject=Tech-Kative%20Diagnostic%20Report%20-%20{org_name}"
+            f"&body=See%20attached%3A%20download%20from%20your%20browser%27s%20Downloads%20folder."
+        )
+        st.markdown(
+            f'<a href="{mailto}" style="font-size:14px;color:{styles.PRIMARY};">'
+            f'&#9993; Email me this report</a>',
+            unsafe_allow_html=True,
+        )
+        st.caption("This opens your email client. The report is not sent automatically.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 

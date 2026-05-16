@@ -86,12 +86,12 @@ def _pillar_tile(pillar_id: str, score: float, tier: str = "") -> str:
 
 
 def _radar_svg(pillar_scores: dict) -> str:
-    W, H = 280, 280
+    W, H = 400, 400
     cx, cy = W // 2, H // 2
-    r_max = 100
-    pids   = ["p1", "p2", "p3", "p4"]
-    colours = [_PRIMARY, _NAVY, _GREEN, _AMBER]
-    short_labels = ["Data", "Governance", "AI Readiness", "Deployment"]
+    r_max = 130
+    pids         = ["p1", "p2", "p3", "p4"]
+    colours      = [_PRIMARY, _NAVY, _GREEN, _AMBER]
+    full_labels  = ["Data Foundations", "Governance & Protection", "AI Readiness", "Responsible Deployment"]
     n = len(pids)
     angles = [math.pi / 2 - i * (2 * math.pi / n) for i in range(n)]
 
@@ -125,11 +125,11 @@ def _radar_svg(pillar_scores: dict) -> str:
     for pid, angle, colour in zip(pids, angles, colours):
         frac = min(1.0, max(0.0, pillar_scores.get(pid, 0) / 100))
         x, y = pt(angle, frac)
-        dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{colour}"/>\n'
+        dots += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{colour}"/>\n'
 
-    label_offset = 1.28
+    label_offset = 1.30
     labels = ""
-    for label, angle, colour, pid in zip(short_labels, angles, colours, pids):
+    for label, angle, colour, pid in zip(full_labels, angles, colours, pids):
         lx, ly = pt(angle, label_offset)
         score_val = int(round(pillar_scores.get(pid, 0)))
         anchor = "middle"
@@ -137,10 +137,33 @@ def _radar_svg(pillar_scores: dict) -> str:
             anchor = "start"
         elif math.cos(angle) < -0.2:
             anchor = "end"
+        # Split long labels across two lines at " & " or " " near midpoint
+        if "&" in label:
+            parts = label.split(" & ", 1)
+            line1, line2 = parts[0], "& " + parts[1]
+        elif len(label) > 16:
+            mid = len(label) // 2
+            split_at = label.rfind(" ", 0, mid + 6)
+            line1 = label[:split_at] if split_at > 0 else label
+            line2 = label[split_at + 1:] if split_at > 0 else ""
+        else:
+            line1, line2 = label, ""
+        dy_offset = -8 if line2 else 0
         labels += (
-            f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="{anchor}" '
-            f'font-family="-apple-system,sans-serif" font-size="10" '
-            f'fill="{colour}" font-weight="700">{label} {score_val}</text>\n'
+            f'<text x="{lx:.1f}" y="{ly + dy_offset:.1f}" text-anchor="{anchor}" '
+            f'font-family="-apple-system,sans-serif" font-size="11" '
+            f'fill="{colour}" font-weight="700">{line1}</text>\n'
+        )
+        if line2:
+            labels += (
+                f'<text x="{lx:.1f}" y="{ly + dy_offset + 14:.1f}" text-anchor="{anchor}" '
+                f'font-family="-apple-system,sans-serif" font-size="11" '
+                f'fill="{colour}" font-weight="700">{line2}</text>\n'
+            )
+        labels += (
+            f'<text x="{lx:.1f}" y="{ly + dy_offset + (28 if line2 else 14):.1f}" '
+            f'text-anchor="{anchor}" font-family="-apple-system,sans-serif" font-size="10" '
+            f'fill="{colour}">{score_val}/100</text>\n'
         )
 
     return (
@@ -149,6 +172,87 @@ def _radar_svg(pillar_scores: dict) -> str:
         f'{grid}{axes}{data}{dots}{labels}'
         f'</svg>'
     )
+
+
+# ---------------------------------------------------------------------------
+# Recommendation priority classification (Priority 3)
+# ---------------------------------------------------------------------------
+
+_RED_TRIGGERS = {
+    "Act 843", "§27", "NDPC", "DPO", "DPC Privacy Seal",
+    "GAID 2025", "DPIA", "Africa Declaration", "sovereignty", "data sovereignty",
+}
+
+_PRIORITY_COLOURS = {"RED": "#c0392b", "AMBER": "#d68910", "GREEN": "#239b56"}
+_PRIORITY_LABELS  = {"RED": "High Priority", "AMBER": "Medium Priority", "GREEN": "Low Priority"}
+_PRIORITY_ORDER   = {"RED": 0, "AMBER": 1, "GREEN": 2}
+
+
+def _rec_priority(item_text: str, tier: str) -> str:
+    if tier == "Emerging":
+        return "RED"
+    if any(t in item_text for t in _RED_TRIGGERS):
+        return "RED"
+    if tier == "Developing":
+        return "AMBER"
+    return "GREEN"
+
+
+def _priority_legend_html() -> str:
+    parts = ""
+    for key in ("RED", "AMBER", "GREEN"):
+        c = _PRIORITY_COLOURS[key]
+        l = _PRIORITY_LABELS[key]
+        parts += (
+            f'<span style="display:inline-flex;align-items:center;gap:6px;'
+            f'margin-right:18px;font-size:12px;color:{_SLATE};">'
+            f'<span style="display:inline-block;width:14px;height:14px;'
+            f'border-radius:2px;background:{c};"></span>{l}</span>'
+        )
+    return (
+        f'<div style="margin-bottom:16px;padding:10px 14px;background:{_WASH};'
+        f'border-radius:6px;display:flex;flex-wrap:wrap;gap:4px;">'
+        f'<span style="font-size:11px;font-weight:700;text-transform:uppercase;'
+        f'letter-spacing:0.06em;color:{_MUTED};margin-right:12px;">Priority:</span>'
+        f'{parts}</div>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Score table (Priority 4)
+# ---------------------------------------------------------------------------
+
+def _score_table_html(pillar_scores: dict, pillar_tiers: dict) -> str:
+    rows = ""
+    for pid in PILLAR_ORDER:
+        pillar  = get_pillar(pid)
+        score   = pillar_scores.get(pid, 0)
+        tier    = pillar_tiers.get(pid, "—")
+        colour  = _PILLAR_TILE_COLOURS[pid]
+        rows += f"""
+        <tr>
+          <td style="padding:8px 12px;font-size:13px;color:{_SLATE};font-weight:600;">
+            <span style="display:inline-block;width:10px;height:10px;
+                         border-radius:50%;background:{colour};margin-right:8px;"></span>
+            {_h(pillar['name'])}
+          </td>
+          <td style="padding:8px 12px;font-size:13px;color:{_MUTED};">{_h(tier)}</td>
+          <td style="padding:8px 12px;font-size:13px;font-weight:700;color:{_SLATE};">{score:.0f} / 100</td>
+        </tr>"""
+    return f"""
+    <table style="width:100%;border-collapse:collapse;margin-top:16px;">
+      <thead>
+        <tr style="background:{_WASH};">
+          <th style="padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;
+                     letter-spacing:0.06em;color:{_MUTED};text-align:left;">Pillar</th>
+          <th style="padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;
+                     letter-spacing:0.06em;color:{_MUTED};text-align:left;">Maturity Level</th>
+          <th style="padding:8px 12px;font-size:11px;font-weight:700;text-transform:uppercase;
+                     letter-spacing:0.06em;color:{_MUTED};text-align:left;">Score / 100</th>
+        </tr>
+      </thead>
+      <tbody>{rows}</tbody>
+    </table>"""
 
 
 def _regulatory_snapshot_html(flags: list) -> str:
@@ -177,25 +281,36 @@ def _regulatory_snapshot_html(flags: list) -> str:
 def _recommendations_html(recommendations: dict) -> str:
     if not recommendations:
         return ""
-    html = ""
+    html = _priority_legend_html()
     for pid in PILLAR_ORDER:
         pillar = get_pillar(pid)
         colour = _PILLAR_TILE_COLOURS[pid]
         r      = recommendations.get(pid, {})
         if not r:
             continue
+        tier  = r.get("tier", "")
+        items = r.get("items", [])
+        # Classify and sort: RED first, then AMBER, then GREEN
+        classified = [(item, _rec_priority(item, tier)) for item in items]
+        classified.sort(key=lambda x: _PRIORITY_ORDER[x[1]])
         html += f"""
-        <div style="margin-bottom:28px;border-left:3px solid {colour};padding-left:16px;">
+        <div style="margin-bottom:28px;padding-left:0;">
           <div style="font-size:12px;font-weight:700;text-transform:uppercase;
-                      letter-spacing:0.07em;color:{colour};margin-bottom:10px;">
+                      letter-spacing:0.07em;color:{colour};margin-bottom:10px;
+                      border-left:3px solid {colour};padding-left:12px;">
             {_h(pillar['name'])} &nbsp;&middot;&nbsp; Score {r.get('score', 0):.0f}
-            &nbsp;&middot;&nbsp; {_h(r.get('tier', ''))}
+            &nbsp;&middot;&nbsp; {_h(tier)}
           </div>"""
-        for i, action in enumerate(r.get("items", []), start=1):
+        for action, priority in classified:
+            pc = _PRIORITY_COLOURS[priority]
+            pl = _PRIORITY_LABELS[priority]
             html += f"""
           <div style="padding:12px 16px;background:{_WASH};border-radius:6px;
-                      margin-bottom:8px;font-size:13px;line-height:1.65;color:{_SLATE};">
-            <strong style="color:{colour};">{i}.</strong> {_h(action)}
+                      margin-bottom:8px;font-size:13px;line-height:1.65;color:{_SLATE};
+                      border-left:4px solid {pc};">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;
+                         letter-spacing:0.05em;color:{pc};display:block;margin-bottom:4px;">{pl}</span>
+            {_h(action)}
           </div>"""
         html += "\n        </div>"
     return html
@@ -262,8 +377,9 @@ def build_report(
     for pid in ["p1", "p2", "p3", "p4"]:
         tiles_html += _pillar_tile(pid, pillar_scrs[pid], pillar_tiers.get(pid, ""))
 
-    # Radar SVG
-    radar_svg = _radar_svg(pillar_scrs)
+    # Radar SVG + score table
+    radar_svg   = _radar_svg(pillar_scrs)
+    score_table = _score_table_html(pillar_scrs, pillar_tiers)
 
     # Regulatory snapshot
     reg_html = _regulatory_snapshot_html(regulatory_flags or [])
@@ -393,12 +509,13 @@ def build_report(
     </div>
   </div>
 
-  <!-- Radar chart -->
+  <!-- Radar chart + score table -->
   <div class="section">
     <div class="section-label">Readiness Profile — Radar View</div>
     <div style="display:flex;justify-content:center;padding:8px 0;">
       {radar_svg}
     </div>
+    {score_table}
   </div>
 
   <!-- Regulatory Compliance Snapshot -->

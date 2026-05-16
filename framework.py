@@ -645,6 +645,30 @@ PRIVACY_NOTICE_PARAGRAPHS = [
 # Convenience helpers
 # ---------------------------------------------------------------------------
 
+PILLAR_INTRODUCTIONS = {
+    "p1": (
+        "This section explores how reliably your institution captures and manages the data "
+        "it produces. Strong data foundations are the prerequisite for any meaningful AI work "
+        "— and for compliance with national data protection law."
+    ),
+    "p2": (
+        "This section examines how your institution protects personal data and complies with "
+        "applicable regulations. For schools, this is non-negotiable: student data is among "
+        "the most sensitive categories under Ghana's Act 843 and Nigeria's NDPA 2023."
+    ),
+    "p3": (
+        "This section assesses whether your institution has the strategy, expertise, and "
+        "discipline to adopt AI tools responsibly. Readiness is not about having AI yet — "
+        "it is about being able to evaluate AI offers critically."
+    ),
+    "p4": (
+        "This section explores whether your institution can deploy AI in ways that are fair, "
+        "explainable, and accountable to the students and families it serves. This is where "
+        "most school-level AI projects fail without preparation."
+    ),
+}
+
+
 def get_pillar(pillar_id: str) -> dict:
     for p in PILLARS:
         if p["id"] == pillar_id:

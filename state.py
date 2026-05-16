@@ -45,6 +45,9 @@ def init() -> None:
         "report_html":       None,  # str, cached for download
         "draft_loaded":      False,
         "profile_errors":    {},    # {field_key: error_message}
+        "completed_pillars": set(), # pillar_ids where all scored questions answered
+        "navigation_target": None,  # "review" when editing from review page
+        "last_saved_at":     None,  # HH:MM:SS timestamp of last response save
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -218,6 +221,43 @@ def current_item_index() -> int:
 
 def set_item_index(index: int) -> None:
     st.session_state.item_index = index
+
+
+# ---------------------------------------------------------------------------
+# Draft save / load
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Completed pillars + navigation target (Priority 2)
+# ---------------------------------------------------------------------------
+
+def get_completed_pillars() -> set:
+    return st.session_state.completed_pillars
+
+
+def mark_pillar_complete(pillar_id: str) -> None:
+    st.session_state.completed_pillars.add(pillar_id)
+
+
+def get_navigation_target():
+    return st.session_state.navigation_target
+
+
+def set_navigation_target(target: str) -> None:
+    st.session_state.navigation_target = target
+
+
+def clear_navigation_target() -> None:
+    st.session_state.navigation_target = None
+
+
+# ---------------------------------------------------------------------------
+# Autosave timestamp (Priority 5)
+# ---------------------------------------------------------------------------
+
+def set_last_saved() -> None:
+    from datetime import datetime
+    st.session_state.last_saved_at = datetime.now().strftime("%H:%M:%S")
 
 
 # ---------------------------------------------------------------------------
