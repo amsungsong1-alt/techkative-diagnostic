@@ -540,32 +540,60 @@ def screen_assessment():
     # ── Question text ─────────────────────────────────────────────────────
     st.markdown(f"### {question['text']}")
 
+    hint = question.get("hint", "")
+    if hint:
+        st.markdown(
+            f'<p style="font-size:13px;color:{styles.MUTED};font-style:italic;'
+            f'line-height:1.7;margin:8px 0 20px;padding:10px 14px;'
+            f'background:#faf5fd;border-radius:6px;border-left:3px solid {colour}55;">'
+            f'{hint}</p>',
+            unsafe_allow_html=True,
+        )
+
     # ── Input by type ─────────────────────────────────────────────────────
-    stored = state.get_response(qid)
+    came_from_review = state.get_navigation_target() == "review"
+    is_last          = item_index >= len(user_qs) - 1
+    stored           = state.get_response(qid)
 
-    if question["type"] == "yes_no_partial":
-        options = YES_NO_OPTIONS
-        stored_index = options.index(stored) if stored in options else None
-        selected = st.radio(
-            "Select one option:",
-            options=options,
-            index=stored_index,
-            key=f"radio_{qid}",
-            label_visibility="collapsed",
-        )
+    def _advance():
+        pillar_qs_scored = [q for q in scored_qs if q["pillar_id"] == question["pillar_id"]]
+        if all(state.get_response(q["id"]) for q in pillar_qs_scored):
+            state.mark_pillar_complete(question["pillar_id"])
+        if came_from_review:
+            state.clear_navigation_target()
+            state.go("review")
+        elif is_last:
+            state.go("review")
+        else:
+            state.set_item_index(item_index + 1)
+            st.rerun()
 
-    elif question["type"] == "likert":
-        options = FOUR_OPTION_LIKERT
-        stored_index = options.index(stored) if stored in options else None
-        selected = st.radio(
-            "Select one option:",
-            options=options,
-            index=stored_index,
-            key=f"radio_{qid}",
-            label_visibility="collapsed",
-        )
+    if question["type"] in ("yes_no_partial", "likert"):
+        options = YES_NO_OPTIONS if question["type"] == "yes_no_partial" else FOUR_OPTION_LIKERT
+        cols    = st.columns(len(options))
+        clicked = None
+        for i, (col, opt) in enumerate(zip(cols, options)):
+            with col:
+                if st.button(
+                    opt,
+                    key=f"opt_{qid}_{i}",
+                    type="primary" if stored == opt else "secondary",
+                    use_container_width=True,
+                ):
+                    clicked = opt
 
-    else:  # open_text — Priority 9
+        if clicked is not None:
+            state.set_response(qid, clicked)
+            state.set_last_saved()
+            _advance()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if show_prev:
+            if st.button("← Previous", key="btn_prev", type="secondary"):
+                state.set_item_index(item_index - 1)
+                st.rerun()
+
+    else:  # open_text
         selected = st.text_area(
             "Your response (optional):",
             value=stored or "",
@@ -578,60 +606,35 @@ def screen_assessment():
         )
         st.caption(f"{len(selected or '')} / 400 characters")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("---")
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("---")
 
-    # Priority 2 — smart Continue button label
-    came_from_review = state.get_navigation_target() == "review"
-    is_last = item_index >= len(user_qs) - 1
-
-    if came_from_review:
-        next_label = "Save & Return to Review →"
-    elif is_last:
-        next_label = "Review Responses →"
-    else:
-        next_label = "Continue →"
-
-    # ── Navigation — Priority 7 (Previous only within pillar) ────────────
-    if show_prev:
-        col_prev, col_next = st.columns(2)
-        with col_prev:
-            prev_btn = st.button("← Previous", key="btn_prev", type="secondary", use_container_width=True)
-        with col_next:
-            next_btn = st.button(next_label, key="btn_next", type="primary", use_container_width=True)
-    else:
-        col_next_only = st.columns([1])[0]
-        with col_next_only:
-            next_btn = st.button(next_label, key="btn_next", type="primary", use_container_width=True)
-        prev_btn = False
-
-    # ── Button handlers ───────────────────────────────────────────────────
-    if next_btn:
-        is_scored = question["type"] != "open_text"
-        if is_scored and selected is None:
-            st.error("Please select one of the options above before continuing.")
+        if came_from_review:
+            next_label = "Save & Return to Review →"
+        elif is_last:
+            next_label = "Review Responses →"
         else:
-            if selected or question["type"] == "open_text":
+            next_label = "Continue →"
+
+        if show_prev:
+            col_prev, col_next = st.columns(2)
+            with col_prev:
+                prev_btn = st.button("← Previous", key="btn_prev", type="secondary", use_container_width=True)
+            with col_next:
+                next_btn = st.button(next_label, key="btn_next", type="primary", use_container_width=True)
+        else:
+            next_btn = st.button(next_label, key="btn_next", type="primary", use_container_width=True)
+            prev_btn = False
+
+        if next_btn:
+            if selected:
                 state.set_response(qid, selected)
-                state.set_last_saved()  # Priority 5
+                state.set_last_saved()
+            _advance()
 
-            # Priority 2 — check if current pillar is now complete
-            pillar_qs_scored = [q for q in scored_qs if q["pillar_id"] == question["pillar_id"]]
-            if all(state.get_response(q["id"]) for q in pillar_qs_scored):
-                state.mark_pillar_complete(question["pillar_id"])
-
-            if came_from_review:
-                state.clear_navigation_target()
-                state.go("review")
-            elif is_last:
-                state.go("review")
-            else:
-                state.set_item_index(item_index + 1)
-                st.rerun()
-
-    if prev_btn:
-        state.set_item_index(item_index - 1)
-        st.rerun()
+        if prev_btn:
+            state.set_item_index(item_index - 1)
+            st.rerun()
 
     # ── Save Draft ────────────────────────────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)

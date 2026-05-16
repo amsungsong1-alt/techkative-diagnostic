@@ -143,9 +143,16 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Does your institution maintain a documented inventory of the data it collects "
-            "from students, staff, and operations — including what is collected, where it is "
-            "stored, and who has access?"
+            "Does your institution keep a written record of what data it collects about "
+            "students, staff, and operations — including where it is stored and who is "
+            "allowed to see it?"
+        ),
+        "hint": (
+            "Think of this as a 'what-we-hold' register. A school in Accra or Lagos typically "
+            "holds: student admission forms, exam scores, attendance sheets, staff contracts, "
+            "and payroll records. A data inventory simply writes all of these down — noting "
+            "where each is kept (paper file, spreadsheet, School Management System) and who "
+            "is allowed to see them."
         ),
     },
     {
@@ -154,9 +161,15 @@ QUESTIONS = [
         "type": "likert",
         "country": None,
         "text": (
-            "How would you rate the consistency and reliability of how data is collected and "
-            "recorded across your institution (e.g., attendance, assessments, teacher "
-            "performance, student records)?"
+            "How consistently and reliably does your institution record key information — "
+            "such as attendance, exam results, and staff performance — across all classes "
+            "and departments?"
+        ),
+        "hint": (
+            "This asks whether all teachers and staff record information in the same way. "
+            "For example: if one class records attendance on paper, another uses a different "
+            "app, and a third only marks absentees — your data is inconsistent. "
+            "Inconsistent data cannot power reliable AI tools."
         ),
     },
     {
@@ -165,8 +178,15 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Does your institution have documented standards or templates for how core data "
-            "(enrolment, results, attendance) is recorded and maintained?"
+            "Does your institution use standard templates or formats that everyone follows "
+            "when recording enrolment, results, or attendance — rather than each person "
+            "choosing their own approach?"
+        ),
+        "hint": (
+            "A standard means there is one official format everyone uses. For example: all "
+            "teachers enter marks using the same grade sheet with the same fields in the same "
+            "order. GES (Ghana) and the Federal Ministry of Education (Nigeria) both recommend "
+            "standardised school record templates."
         ),
     },
     {
@@ -175,8 +195,13 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "If your institution stopped using its current digital systems or vendors tomorrow, "
-            "could you export and retain all of your data in a usable format?"
+            "If your school switched software provider tomorrow, could you immediately export "
+            "and keep all your existing student and staff data in a usable format?"
+        ),
+        "hint": (
+            "Many schools in Accra or Abuja use a local edtech platform. If that provider "
+            "goes offline, can you export three years of student results instantly — or would "
+            "the data be lost? A usable format means Excel, CSV, or PDF files you own and control."
         ),
     },
     {
@@ -185,8 +210,14 @@ QUESTIONS = [
         "type": "likert",
         "country": None,
         "text": (
-            "How clearly is ownership of institutional data assigned — i.e., who is accountable "
-            "for data quality, access decisions, and corrections when something goes wrong?"
+            "Is there a named person or role at your institution who is responsible for keeping "
+            "data accurate, deciding who can access it, and correcting errors when they occur?"
+        ),
+        "hint": (
+            "In practice: if a student's exam result is entered incorrectly, is there a named "
+            "person — such as the head teacher, data clerk, or ICT coordinator — whose specific "
+            "job is to fix it and prevent it happening again? Or does responsibility fall "
+            "between staff with no clear owner?"
         ),
     },
     {
@@ -207,8 +238,16 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Does your institution have a written data protection policy that covers how "
-            "personal data is collected, used, stored, and shared?"
+            "Does your institution have a written data protection policy explaining what "
+            "personal information you collect, why you collect it, how it is kept safe, "
+            "and who is allowed to see it?"
+        ),
+        "hint": (
+            "This is a short school rule — not a lengthy legal document — covering four "
+            "things: what data you collect, why, how it is stored safely, and who has access. "
+            "Under Ghana's Act 843 and Nigeria's NDPA 2023, every organisation collecting "
+            "personal data must have one. A one-page version signed by the head teacher is "
+            "a valid starting point."
         ),
     },
     {
@@ -217,8 +256,15 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Do you have documented consent procedures for collecting personal data from "
-            "students, parents, and staff — including a clear statement of purpose?"
+            "Do you have a written process for getting permission from students, parents, "
+            "and staff before collecting their personal information — and for telling them "
+            "clearly what it will be used for?"
+        ),
+        "hint": (
+            "Consent means asking for permission before collecting information, and telling "
+            "people why. For example: a parent enrolment form in Kumasi or Kano that says "
+            "'Your child's photo may appear in our school newsletter — tick here if you agree' "
+            "is a simple consent process. Collecting data without this step is a legal risk."
         ),
     },
     {
@@ -227,8 +273,14 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Is there a documented incident response procedure if data is lost, stolen, "
-            "or accessed without authorisation?"
+            "Does your institution have a written step-by-step plan for what to do if "
+            "student or staff data is lost, stolen, or accessed without permission?"
+        ),
+        "hint": (
+            "For example: if a laptop with student records is stolen, this plan would say — "
+            "who to notify inside the school, how quickly to inform the Data Protection "
+            "Commission (Ghana DPC) or NDPC (Nigeria), and how to prevent a repeat. "
+            "Without this plan, the response to a data breach is left to chance."
         ),
     },
     {
@@ -237,8 +289,14 @@ QUESTIONS = [
         "type": "likert",
         "country": None,
         "text": (
-            "How transparently does your institution communicate its data practices to parents, "
-            "students, and the wider school community?"
+            "How openly does your institution inform parents, students, and the wider "
+            "community about what data it holds about them and how that data is used?"
+        ),
+        "hint": (
+            "For example: is there a privacy notice on your school's noticeboard, website, "
+            "or included in the admission pack? Are parents told if their child's data is "
+            "shared with an exam body, an NGO, or a third-party platform? Transparency is "
+            "required under both Ghanaian and Nigerian law."
         ),
     },
     # Ghana-specific
@@ -249,7 +307,15 @@ QUESTIONS = [
         "country": "Ghana",
         "text": (
             "Is your institution registered as a data controller with Ghana's Data Protection "
-            "Commission (DPC), as required under §27 of the Data Protection Act, 2012 (Act 843)?"
+            "Commission (DPC), as required by Section 27 of the Data Protection Act, 2012 "
+            "(Act 843)?"
+        ),
+        "hint": (
+            "Ghana law requires every organisation that collects personal data — including "
+            "schools — to register with the DPC. Registration is completed online at "
+            "dpc.gov.gh. If your school has not registered, this is a legal compliance gap. "
+            "Registration fees range from GH₵ 150 to GH₵ 500 depending on "
+            "institution size."
         ),
     },
     {
@@ -258,8 +324,14 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": "Ghana",
         "text": (
-            "Does your institution hold the DPC Privacy Seal (effective January 2026), "
-            "or is an application in progress?"
+            "Does your institution hold the DPC Privacy Seal (introduced January 2026) — "
+            "or is an application currently in progress?"
+        ),
+        "hint": (
+            "The DPC Privacy Seal is a voluntary certification showing a Ghanaian school "
+            "meets data protection standards. To apply, schools must have a registered "
+            "policy, appoint a responsible officer, and show how personal data is protected. "
+            "It signals trustworthiness to parents, funders, and partner organisations."
         ),
     },
     # Nigeria-specific
@@ -269,9 +341,16 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": "Nigeria",
         "text": (
-            "Is your institution registered with Nigeria's Data Protection Commission (NDPC), "
-            "and if so, classified as a Data Controller/Processor of Major Importance (DCPMI) "
-            "under GAID 2025?"
+            "Is your institution registered with Nigeria's National Data Protection Commission "
+            "(NDPC) — and if applicable, has it been classified as a Data Controller/Processor "
+            "of Major Importance (DCPMI) under GAID 2025?"
+        ),
+        "hint": (
+            "Under Nigeria's NDPA 2023 and GAID 2025 (effective September 2025), schools "
+            "handling large volumes of personal data must register with the NDPC. Schools "
+            "using AI tools or holding data on many students may be classified as DCPMI with "
+            "additional compliance duties. Check ndpc.gov.ng for current registration "
+            "thresholds."
         ),
     },
     {
@@ -280,8 +359,15 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": "Nigeria",
         "text": (
-            "Has a Data Protection Officer (DPO) been formally designated at your institution, "
-            "with documented responsibility for compliance reporting?"
+            "Has your institution formally appointed a Data Protection Officer (DPO) — a "
+            "named person responsible for compliance with Nigeria's data protection law — "
+            "with this role documented in writing?"
+        ),
+        "hint": (
+            "A DPO is a named staff member or external consultant responsible for ensuring "
+            "the school follows the NDPA 2023. This could be the head teacher, admin officer, "
+            "or ICT lead — as long as the role is formally documented. Under the law, schools "
+            "processing significant personal data must have one."
         ),
     },
     # Universal open-text
@@ -303,8 +389,16 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Does your institution have a documented AI strategy or written plan that defines "
-            "how and where AI tools will be used?"
+            "Does your institution have a written plan that sets out which AI tools will be "
+            "used, what they will be used for, who is responsible for overseeing them, and "
+            "how student data will be protected?"
+        ),
+        "hint": (
+            "An AI strategy does not need to be a lengthy document. A one-page plan approved "
+            "by school leadership is sufficient. For example: a secondary school in Accra or "
+            "Lagos using an AI-assisted marking tool should document the tool's purpose, the "
+            "teacher oversight required, and how student data is protected — signed off by "
+            "the head teacher."
         ),
     },
     {
@@ -313,8 +407,15 @@ QUESTIONS = [
         "type": "likert",
         "country": None,
         "text": (
-            "How clearly defined are the specific problems or use-cases your institution wants "
-            "AI to address (e.g., personalised learning, administrative efficiency, student support)?"
+            "How clearly has your institution identified the specific problems it wants AI "
+            "to solve — such as reducing administrative work, improving student feedback, "
+            "or identifying learners who need extra support?"
+        ),
+        "hint": (
+            "'We want to use AI' is not a clear use-case. A clear example is: 'We want AI "
+            "to send weekly SMS alerts to parents of students who miss more than three days "
+            "of school.' That is specific, measurable, and actionable. Vague goals lead to "
+            "poor AI choices and wasted resources."
         ),
     },
     {
@@ -323,8 +424,16 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Does your institution have technical staff or external partners with the expertise "
-            "to implement and oversee AI tools responsibly?"
+            "Does your institution have staff with the digital or technical skills to set up "
+            "and oversee AI tools responsibly — or reliable external partners who can provide "
+            "this support?"
+        ),
+        "hint": (
+            "You do not need a full data science team. This could be a contracted ed-tech "
+            "vendor, a teacher with digital skills who manages the tools, or a university or "
+            "NGO partnership. For example: a school in Port Harcourt or Tamale partnering "
+            "with a local IT firm — with at least one staff member trained to oversee the "
+            "platform day-to-day."
         ),
     },
     {
@@ -333,8 +442,15 @@ QUESTIONS = [
         "type": "likert",
         "country": None,
         "text": (
-            "Before adopting an AI tool, how rigorously does your institution evaluate whether "
-            "AI is the right solution — including consideration of simpler, non-AI alternatives?"
+            "Before adopting any new AI tool, how thoroughly does your institution ask "
+            "critical questions — such as whether AI is the right solution, what data will "
+            "be collected, and whether a simpler approach could achieve the same result?"
+        ),
+        "hint": (
+            "For example: before signing up to an AI-powered attendance system, does a "
+            "senior staff member check — what data does it collect, is sharing student "
+            "biometric data with this vendor proportionate, and could a well-designed "
+            "spreadsheet or teacher-led process achieve the same goal at lower risk?"
         ),
     },
     {
@@ -343,9 +459,16 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Does your institution's procurement or technology decision process require AI vendors "
-            "to disclose how their systems were trained, what data they use, and where that "
-            "data is stored?"
+            "When selecting an AI vendor or platform, does your institution require the "
+            "provider to explain how their system was built, what data it uses, and where "
+            "student data will be stored and protected?"
+        ),
+        "hint": (
+            "Many free or low-cost ed-tech platforms across Africa do not disclose this by "
+            "default. For example: before a Ghanaian or Nigerian school signs up to an AI "
+            "grading platform, does the procurement process ask the vendor to confirm that "
+            "the AI was not trained on your students' data without consent, and that data "
+            "is stored on servers with adequate legal protections?"
         ),
     },
     {
@@ -366,9 +489,15 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Does your institution have a documented process to check whether AI tools produce "
-            "fair outcomes across different groups of students "
-            "(gender, language, ability, background)?"
+            "Does your institution have a process for checking whether AI tools produce fair "
+            "results for all students — including across different genders, languages, "
+            "abilities, and backgrounds?"
+        ),
+        "hint": (
+            "AI tools can produce unfair results without anyone intending it. For example: "
+            "an AI reading assessment trained on English-medium data may systematically "
+            "underrate students whose home language is Twi, Yoruba, Hausa, or Igbo. Does "
+            "your school check AI recommendations across student groups — even informally?"
         ),
     },
     {
@@ -377,8 +506,16 @@ QUESTIONS = [
         "type": "likert",
         "country": None,
         "text": (
-            "If an AI tool made a decision that affected a student or teacher, how clearly could "
-            "a staff member explain to that person why the decision was made?"
+            "If an AI tool produced a result affecting a student or staff member — such as "
+            "a grade, risk flag, or recommendation — how clearly could a teacher explain to "
+            "that person specifically why that result was produced?"
+        ),
+        "hint": (
+            "If the best answer is 'the system gave us that result', your AI tool lacks "
+            "explainability. For example: if an AI platform recommends a student be placed "
+            "in a remedial class, a teacher should be able to explain to the parent which "
+            "specific factors (attendance, test scores, submission rate) influenced that "
+            "recommendation — in plain language, without jargon."
         ),
     },
     {
@@ -387,8 +524,16 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Is human review and approval required before AI-generated decisions are acted upon "
-            "(e.g., for student placement, performance flags, or resource allocation)?"
+            "Before acting on any AI-generated recommendation — such as a student placement "
+            "decision, performance flag, or resource allocation — is a human required to "
+            "review and approve it?"
+        ),
+        "hint": (
+            "AI tools can and do make mistakes, especially in African school contexts where "
+            "training data is limited. For example: if an AI tool recommends a student "
+            "repeat a class, should the head teacher or a review committee formally confirm "
+            "this before the student is informed? Human oversight prevents errors from "
+            "becoming unfair outcomes."
         ),
     },
     {
@@ -397,8 +542,14 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Does your institution have a documented way for students, parents, or staff to "
-            "challenge or appeal an AI-influenced decision they believe is unfair?"
+            "Does your institution have a written process for students, parents, or staff "
+            "to challenge or appeal a decision that was influenced by an AI tool?"
+        ),
+        "hint": (
+            "For example: if an AI attendance system marks a student as absent when they "
+            "were present, is there a clear formal route for the parent to raise this and "
+            "have the record corrected? Without a complaints process, affected families have "
+            "no recourse — which is a rights issue under both Ghanaian and Nigerian law."
         ),
     },
     {
@@ -407,9 +558,17 @@ QUESTIONS = [
         "type": "yes_no_partial",
         "country": None,
         "text": (
-            "Are student data and operational data stored on locally governed or "
-            "African-headquartered infrastructure, consistent with the data sovereignty "
-            "commitments of the Africa Declaration on AI (Kigali, 4 April 2025)?"
+            "Is your institution's student and operational data stored on servers that are "
+            "governed by African or local law — rather than solely on platforms based in "
+            "the US, Europe, or other regions outside Africa?"
+        ),
+        "hint": (
+            "Data sovereignty means your school's data is subject to African or local laws, "
+            "not solely foreign frameworks. For example: a Ghanaian school storing all "
+            "student data on US-based servers means that data is governed primarily by US "
+            "law, limiting Ghana's Act 843 protections. The Africa Declaration on AI "
+            "(Kigali, April 2025) calls on African institutions to prioritise locally or "
+            "regionally governed data infrastructure."
         ),
     },
     {
