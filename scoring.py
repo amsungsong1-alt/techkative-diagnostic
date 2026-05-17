@@ -147,6 +147,16 @@ def generate_regulatory_flags(responses: dict, country: str) -> list:
                 "label": "Data Protection Officer (DPO)",
                 "description": "not formally designated",
             })
+        if responses.get("gp_7_ng") in ("No", "Partial"):
+            flags.append({
+                "label": "Data Protection Impact Assessment (DPIA)",
+                "description": "not completed for high-risk processing activities (GAID 2025)",
+            })
+        if responses.get("gp_8_ng") in ("No", "Partial"):
+            flags.append({
+                "label": "Record of Processing Activities (RoPA)",
+                "description": "not maintained or not updated biannually (NDPA 2023 / GAID 2025)",
+            })
 
     if responses.get("rd_5") == "No":
         flags.append({

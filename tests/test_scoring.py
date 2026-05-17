@@ -164,6 +164,18 @@ class TestRegulatoryFlags:
         labels = [f["label"] for f in generate_regulatory_flags(r, "Nigeria")]
         assert any("DPO" in l or "Data Protection Officer" in l for l in labels)
 
+    def test_nigeria_flag_when_gp7_no(self):
+        r = _all_yes("Nigeria")
+        r["gp_7_ng"] = "No"
+        labels = [f["label"] for f in generate_regulatory_flags(r, "Nigeria")]
+        assert any("DPIA" in l for l in labels)
+
+    def test_nigeria_flag_when_gp8_no(self):
+        r = _all_yes("Nigeria")
+        r["gp_8_ng"] = "No"
+        labels = [f["label"] for f in generate_regulatory_flags(r, "Nigeria")]
+        assert any("RoPA" in l or "Record of Processing" in l for l in labels)
+
     def test_sovereignty_flag_when_rd5_no(self):
         r = _all_yes("Ghana")
         r["rd_5"] = "No"

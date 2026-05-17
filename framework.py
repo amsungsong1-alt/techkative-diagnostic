@@ -313,7 +313,7 @@ QUESTIONS = [
         "hint": (
             "Ghana law requires every organisation that collects personal data — including "
             "schools — to register with the DPC. Registration is completed online at "
-            "dpc.gov.gh. If your school has not registered, this is a legal compliance gap. "
+            "dataprotection.org.gh. If your school has not registered, this is a legal compliance gap. "
             "Registration fees range from GH₵ 150 to GH₵ 500 depending on "
             "institution size."
         ),
@@ -368,6 +368,46 @@ QUESTIONS = [
             "the school follows the NDPA 2023. This could be the head teacher, admin officer, "
             "or ICT lead — as long as the role is formally documented. Under the law, schools "
             "processing significant personal data must have one."
+        ),
+    },
+    # Nigeria-specific (continued)
+    {
+        "id": "gp_7_ng",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": "Nigeria",
+        "text": (
+            "Has your institution completed a Data Protection Impact Assessment (DPIA) for "
+            "high-risk activities involving student or staff data — such as using AI tools, "
+            "biometric attendance systems, or processing children's data at scale?"
+        ),
+        "hint": (
+            "A DPIA is a structured risk assessment done before starting activities that pose "
+            "high privacy risks. Under GAID 2025, schools using AI tools or processing "
+            "children's data are likely to trigger this requirement. For example: before "
+            "deploying an AI-powered student performance tracking system in Lagos or Kano, "
+            "a DPIA would assess what data is collected, the privacy risks, and how they are "
+            "mitigated. If your school uses any AI tools and has not done a DPIA, this is "
+            "a compliance gap under Nigerian law."
+        ),
+    },
+    {
+        "id": "gp_8_ng",
+        "pillar_id": "p2",
+        "type": "yes_no_partial",
+        "country": "Nigeria",
+        "text": (
+            "Does your institution maintain a Record of Processing Activities (RoPA) — a "
+            "living document listing every way you collect, use, store, and share personal "
+            "data — updated at least every six months?"
+        ),
+        "hint": (
+            "A RoPA is a master log of what your institution does with personal data. Under "
+            "NDPA 2023 / GAID 2025, schools must keep this up to date. For example: a school "
+            "in Abuja would list in its RoPA — student admissions, payroll, exam result "
+            "sharing with WAEC/NECO, CCTV footage, and any third-party ed-tech platforms — "
+            "with the date it was last reviewed. It is a practical compliance tool and a "
+            "core accountability requirement for your appointed DPO."
         ),
     },
     # Universal open-text
