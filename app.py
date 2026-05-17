@@ -990,32 +990,29 @@ def screen_results():
     # ── Download ──────────────────────────────────────────────────────────
     if report_html:
         _sidebar()
+        st.subheader("Download Your Report")
+        st.markdown(
+            "A complete HTML report with your pillar scores, recommendations, "
+            "and regulatory compliance snapshot."
+        )
         org_raw       = profile.get("institution_name", "report")
         org_sanitized = re.sub(r"[^A-Za-z0-9]", "_", org_raw).strip("_") or "report"
         date_str      = datetime.now().strftime("%Y%m%d")
         fname         = f"TechKative_Diagnostic_{org_sanitized}_{date_str}.html"
-        st.download_button(
-            label="Download Report (HTML)",
+        if st.download_button(
+            label="📥 Download Report (HTML)",
             data=report_html.encode("utf-8"),
             file_name=fname,
             mime="text/html",
-            type="secondary",
+            type="primary",
+        ):
+            st.session_state.report_downloaded = True
+        if st.session_state.get("report_downloaded", False):
+            st.success("✓ Report downloaded successfully. Check your Downloads folder.")
+        st.caption(
+            "After downloading, share the report by attaching it to an email or message. "
+            "To request a new copy or delete your data, contact info@techkative.com."
         )
-        st.success("Report downloaded. Check your Downloads folder.")
-
-        user_email = profile.get("contact_email", "")
-        org_name   = profile.get("institution_name", "")
-        mailto = (
-            f"mailto:{user_email}"
-            f"?subject=Tech-Kative%20Diagnostic%20Report%20-%20{org_name}"
-            f"&body=See%20attached%3A%20download%20from%20your%20browser%27s%20Downloads%20folder."
-        )
-        st.markdown(
-            f'<a href="{mailto}" style="font-size:14px;color:{styles.PRIMARY};">'
-            f'&#9993; Email me this report</a>',
-            unsafe_allow_html=True,
-        )
-        st.caption("This opens your email client. The report is not sent automatically.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
