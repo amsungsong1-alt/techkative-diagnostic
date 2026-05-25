@@ -548,7 +548,7 @@ def build_report(
 
   <!-- Footer -->
   <div class="footer">
-    <div class="footer-brand">Tech-Kative · AI-Readiness Diagnostic v2 · info@techkative.com</div>
+    <div class="footer-brand">Tech-Kative · AI-Readiness Diagnostic v2 &nbsp;·&nbsp; Ghana Act 843 §30(4) &nbsp;·&nbsp; Nigeria GAID 2025 Art. 18 &nbsp;·&nbsp; info@techkative.com</div>
     <div class="footer-date">Generated {_h(today)}</div>
   </div>
 
@@ -557,3 +557,106 @@ def build_report(
 </html>"""
 
     return html
+
+
+# ---------------------------------------------------------------------------
+# PDF report (Priority 3)
+# ---------------------------------------------------------------------------
+
+def build_pdf_report(
+    profile: dict,
+    scores: dict,
+    recommendations: dict,
+    responses: dict,
+    regulatory_flags: list = None,
+) -> bytes:
+    """
+    Build a PDF using reportlab (pure Python). Returns raw bytes for st.download_button.
+    """
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=2 * cm, rightMargin=2 * cm,
+        topMargin=2 * cm, bottomMargin=2 * cm,
+    )
+    S = getSampleStyleSheet()
+    h3  = ParagraphStyle("h3",  parent=S["Heading3"], fontSize=11, spaceBefore=12)
+    bod = ParagraphStyle("bod", parent=S["Normal"],   fontSize=9,  leading=14)
+    sm  = ParagraphStyle("sm",  parent=S["Normal"],   fontSize=7,
+                          textColor=colors.HexColor(_MUTED))
+
+    pids         = PILLAR_ORDER
+    pillar_names = [get_pillar(pid)["name"] for pid in pids]
+    p_sc         = scores["pillar_scores"]
+    story        = []
+
+    # Header
+    story.append(Paragraph("Tech-Kative · AI-Readiness Diagnostic v2", S["Title"]))
+    story.append(Paragraph(
+        f"{profile.get('institution_name', '')} · {profile.get('country', '')}",
+        S["Heading2"],
+    ))
+    story.append(Spacer(1, 0.4 * cm))
+
+    # Composite
+    story.append(Paragraph(
+        f"Composite Score: <b>{scores['composite']:.0f} / 100</b> — {scores['tier']}", h3,
+    ))
+    story.append(Spacer(1, 0.4 * cm))
+
+    # Pillar score table
+    story.append(Paragraph("Pillar Scores", h3))
+    td = [["Pillar", "Score / 100", "Maturity Level"]]
+    for pid, nm in zip(pids, pillar_names):
+        td.append([nm, f"{p_sc[pid]:.0f}", scores["pillar_tiers"].get(pid, "")])
+    tbl = Table(td, colWidths=[9 * cm, 3 * cm, 4 * cm])
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND",     (0, 0), (-1, 0), colors.HexColor(_NAVY)),
+        ("TEXTCOLOR",      (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",       (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",       (0, 0), (-1, -1), 9),
+        ("GRID",           (0, 0), (-1, -1), 0.25, colors.HexColor(_BORDER)),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.HexColor(_WASH), colors.white]),
+        ("LEFTPADDING",    (0, 0), (-1, -1), 8),
+        ("TOPPADDING",     (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING",  (0, 0), (-1, -1), 5),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 0.5 * cm))
+
+    # Recommendations
+    story.append(Paragraph("Recommended Actions", h3))
+    for pid, nm in zip(pids, pillar_names):
+        r = recommendations.get(pid, {})
+        story.append(Paragraph(f"<b>{nm}</b> — {r.get('tier', '')}", bod))
+        for item in r.get("items", []):
+            story.append(Paragraph(f"• {item}", bod))
+        story.append(Spacer(1, 0.2 * cm))
+
+    # Regulatory flags
+    if regulatory_flags:
+        story.append(Spacer(1, 0.3 * cm))
+        story.append(Paragraph("Regulatory Compliance Snapshot", h3))
+        for flag in regulatory_flags:
+            story.append(Paragraph(
+                f"<b>{flag['label']}</b>: {flag['description']}", bod,
+            ))
+
+    # Footer
+    story.append(Spacer(1, 0.5 * cm))
+    story.append(Paragraph(
+        f"Ghana Data Protection Act, 2012 (Act 843) §30(4) · "
+        f"Nigeria GAID 2025 Article 18 · "
+        f"Not legal advice. © Tech-Kative {date.today().year}",
+        sm,
+    ))
+
+    doc.build(story)
+    return buf.getvalue()

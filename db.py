@@ -27,6 +27,7 @@ Supabase table schema (run in Supabase SQL editor):
 
 import json
 import os
+from datetime import datetime, timezone
 
 
 def _client():
@@ -70,11 +71,14 @@ def save_assessment(
             "institution_name":  profile.get("institution_name"),
             "institution_type":  profile.get("institution_type"),
             "country":           profile.get("country"),
+            "region":            profile.get("region", ""),
             "contact_email":     profile.get("contact_email"),
             "role":              profile.get("role"),
             "pilot_code":        profile.get("pilot_code", ""),
             "assessment_phase":  profile.get("assessment_phase", ""),
             "consent_given_at":  profile.get("consent_given_at"),
+            "session_token":     profile.get("session_token", ""),
+            "completed_at":      datetime.now(timezone.utc).isoformat(),
             "responses":         json.dumps(responses),
             "pillar_scores":     json.dumps(scores.get("pillar_scores", {})),
             "composite":         scores.get("composite"),

@@ -28,6 +28,7 @@ def init() -> None:
             "institution_name": "",
             "institution_type": "",
             "country":          "",
+            "region":           "",
             "contact_name":     "",
             "contact_email":    "",
             "role":             "",
@@ -48,6 +49,7 @@ def init() -> None:
         "completed_pillars": set(), # pillar_ids where all scored questions answered
         "navigation_target": None,  # "review" when editing from review page
         "last_saved_at":     None,  # HH:MM:SS timestamp of last response save
+        "session_token":     "",    # hex token for URL-based resume
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -249,6 +251,18 @@ def set_navigation_target(target: str) -> None:
 
 def clear_navigation_target() -> None:
     st.session_state.navigation_target = None
+
+
+# ---------------------------------------------------------------------------
+# Session token (Priority 2 — URL resume)
+# ---------------------------------------------------------------------------
+
+def get_session_token() -> str:
+    return st.session_state.get("session_token", "")
+
+
+def set_session_token(token: str) -> None:
+    st.session_state.session_token = token
 
 
 # ---------------------------------------------------------------------------

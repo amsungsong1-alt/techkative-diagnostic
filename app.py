@@ -16,6 +16,7 @@ import streamlit as st
 from dotenv import load_dotenv
 
 import db
+import session_store
 import state
 import styles
 from email_service import send_all
@@ -33,7 +34,7 @@ from framework import (
     get_questions_for_user,
     get_scored_questions,
 )
-from report import build_report
+from report import build_report, build_pdf_report
 from scoring import (
     compute_score_summary,
     generate_recommendations,
@@ -69,6 +70,18 @@ styles.inject_styles()
 state.init()
 _load_streamlit_secrets()
 
+# Priority 2 — URL token resume (runs once per browser session)
+if not st.session_state.get("_token_checked"):
+    st.session_state._token_checked = True
+    _url_token = st.query_params.get("token", "")
+    if _url_token:
+        _url_payload = session_store.load(_url_token)
+        if _url_payload:
+            state.load_draft_payload(_url_payload)
+            st.session_state.session_token = _url_token
+    if not st.session_state.get("session_token"):
+        st.session_state.session_token = session_store.new_token()
+
 _LOGO = Path("assets/logo.png")
 
 
@@ -100,9 +113,11 @@ def _header():
 def _footer():
     st.markdown(
         f'<div class="tk-footer">'
-        f'<span>Tech-Kative · AI-Readiness Diagnostic v2 · info@techkative.com</span>'
-        f'<span>AI readiness. African context.</span>'
-        f"</div>",
+        f'<span>Tech-Kative · AI-Readiness Diagnostic v2</span>'
+        f'<span style="font-size:11px;color:{styles.MUTED};">'
+        f'Ghana Act 843 §30(4) &nbsp;·&nbsp; Nigeria GAID 2025 Art. 18 &nbsp;·&nbsp;'
+        f'<a href="mailto:info@techkative.com" style="color:{styles.MUTED};">info@techkative.com</a>'
+        f'</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -178,11 +193,51 @@ def _score_bar_html(score: float, colour: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Screen 1 — Welcome
+# Audio onboarding widget (Priority 4)
 # ---------------------------------------------------------------------------
 
-def screen_welcome():
+_AUDIO_INTRO = {
+    "English": (
+        "Welcome to the Tech-Kative AI-Readiness Diagnostic. "
+        "This tool helps your institution understand its readiness to govern, "
+        "deploy, and absorb AI responsibly across four pillars."
+    ),
+    "Twi": (
+        "Akwaaba wɔ Tech-Kative AI-Readiness Diagnostic mu. "
+        "Saa nnwuma yi bɛboa wo agyapadwa no ahumfɛ AI ho nimdeɛ wɔ pillar anan mu."
+    ),
+    "Dagbani": (
+        "Ni ti paɣa Tech-Kative AI-Readiness Diagnostic. "
+        "A saa nuntɔɣu nyɛla a gbaŋŋa yeli n-ye A.I. tɔŋ wuhigu pillar naŋ ŋun."
+    ),
+}
+_AUDIO_FILES = {
+    "English": "assets/intro_en.mp3",
+    "Twi":     "assets/intro_tw.mp3",
+    "Dagbani": "assets/intro_dg.mp3",
+}
+
+
+# ---------------------------------------------------------------------------
+# Screen 1 — Welcome + Consent (merged, Priority 1)
+# ---------------------------------------------------------------------------
+
+def screen_welcome_consent():
     _header()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Priority 4 — language selector + audio/text intro
+    lang = st.selectbox(
+        "Language / Ɔkasa / Yɛli",
+        ["English", "Twi", "Dagbani"],
+        label_visibility="collapsed",
+    )
+    _audio_path = Path(_AUDIO_FILES[lang])
+    if _audio_path.exists():
+        st.audio(str(_audio_path))
+    else:
+        st.info(_AUDIO_INTRO[lang])
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
@@ -219,12 +274,30 @@ def screen_welcome():
         _pillar_pill(pillar)
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # Privacy notice (Priority 1 — inline expander)
+    with st.expander("Privacy Notice — read before proceeding"):
+        for para in PRIVACY_NOTICE_PARAGRAPHS:
+            st.markdown(para)
+
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
+
+    agreed = st.checkbox(
+        "I have read and accept the Privacy Notice above, and confirm I have authority "
+        "to complete this diagnostic on behalf of my institution."
+    )
 
     col_cta, col_space = st.columns([2, 3])
     with col_cta:
-        if st.button("Begin the Diagnostic →", type="primary", use_container_width=True):
-            state.go("consent")
+        if st.button(
+            "Begin the Diagnostic →",
+            type="primary",
+            use_container_width=True,
+            disabled=not agreed,
+        ):
+            state.set_consent(datetime.now(timezone.utc).isoformat())
+            state.go("profile")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
@@ -251,49 +324,6 @@ def screen_welcome():
                 )
         except Exception:
             st.error("Could not read the uploaded file. Please ensure it is a valid JSON draft.")
-
-    _footer()
-
-
-# ---------------------------------------------------------------------------
-# Screen 2 — Consent / Privacy Notice
-# ---------------------------------------------------------------------------
-
-def screen_consent():
-    _header()
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.markdown(
-        f'<p style="font-size:12px;font-weight:700;letter-spacing:0.1em;'
-        f'text-transform:uppercase;color:{styles.PRIMARY};">Privacy Notice</p>',
-        unsafe_allow_html=True,
-    )
-    st.markdown("## About this Diagnostic")
-
-    for para in PRIVACY_NOTICE_PARAGRAPHS:
-        st.markdown(para)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("---")
-
-    agreed = st.checkbox(
-        "I have read and accept the above, and confirm I have authority to complete "
-        "this diagnostic on behalf of my institution."
-    )
-
-    col_back, col_proceed = st.columns([1, 2])
-    with col_back:
-        if st.button("← Back", type="secondary", use_container_width=True):
-            state.go("welcome")
-    with col_proceed:
-        if st.button(
-            "Proceed to Diagnostic →",
-            type="primary",
-            use_container_width=True,
-            disabled=not agreed,
-        ):
-            state.set_consent(datetime.now(timezone.utc).isoformat())
-            state.go("profile")
 
     _footer()
 
@@ -398,6 +428,12 @@ def screen_profile():
         placeholder="e.g. Deputy Headteacher",
     )
 
+    region = st.text_input(
+        "Region / State",
+        value=prof.get("region", ""),
+        placeholder="e.g. Greater Accra / Lagos State",
+    )
+
     # Pilot code section
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
@@ -432,7 +468,7 @@ def screen_profile():
     with col_back:
         if st.button("← Back", type="secondary", use_container_width=True):
             st.session_state.profile_errors = {}
-            state.go("consent")
+            state.go("welcome")
     with col_fwd:
         proceed = st.button(
             "Continue to Assessment →", type="primary", use_container_width=True
@@ -461,12 +497,14 @@ def screen_profile():
                 "institution_name":  institution_name.strip(),
                 "institution_type":  institution_type,
                 "country":           country,
+                "region":            region.strip(),
                 "contact_name":      contact_name.strip(),
                 "contact_email":     contact_email.strip(),
                 "role":              role.strip(),
                 "pilot_code":        state.get_pilot_code(),
                 "assessment_phase":  state.get_assessment_phase(),
                 "consent_given_at":  state.get_consent(),
+                "session_token":     st.session_state.get("session_token", ""),
             })
             state.go("assessment")
         else:
@@ -559,6 +597,13 @@ def screen_assessment():
         pillar_qs_scored = [q for q in scored_qs if q["pillar_id"] == question["pillar_id"]]
         if all(state.get_response(q["id"]) for q in pillar_qs_scored):
             state.mark_pillar_complete(question["pillar_id"])
+            try:
+                session_store.save(
+                    st.session_state.get("session_token", ""),
+                    state.build_draft_payload(),
+                )
+            except Exception:
+                pass
         if came_from_review:
             state.clear_navigation_target()
             state.go("review")
@@ -647,6 +692,16 @@ def screen_assessment():
         type="secondary",
         help="Download your progress and resume later by uploading this file on the welcome screen.",
     )
+    _resume_token = st.session_state.get("session_token", "")
+    if _resume_token:
+        try:
+            _app_url = (
+                st.secrets.get("APP_URL", "")
+                if hasattr(st, "secrets") else ""
+            ) or "https://techkative-diagnostic.streamlit.app"
+        except Exception:
+            _app_url = "https://techkative-diagnostic.streamlit.app"
+        st.caption(f"Resume link (saved automatically after each pillar): `{_app_url}?token={_resume_token}`")
 
     _footer()
 
@@ -999,14 +1054,37 @@ def screen_results():
         org_sanitized = re.sub(r"[^A-Za-z0-9]", "_", org_raw).strip("_") or "report"
         date_str      = datetime.now().strftime("%Y%m%d")
         fname         = f"TechKative_Diagnostic_{org_sanitized}_{date_str}.html"
-        if st.download_button(
-            label="📥 Download Report (HTML)",
-            data=report_html.encode("utf-8"),
-            file_name=fname,
-            mime="text/html",
-            type="primary",
-        ):
-            st.session_state.report_downloaded = True
+        try:
+            _pdf_bytes = build_pdf_report(
+                profile=profile, scores=scores,
+                recommendations=recs, responses=responses,
+                regulatory_flags=flags or [],
+            )
+            _pdf_ok = True
+        except Exception:
+            _pdf_bytes = None
+            _pdf_ok = False
+        col_html, col_pdf = st.columns(2)
+        with col_html:
+            if st.download_button(
+                label="📥 Download HTML",
+                data=report_html.encode("utf-8"),
+                file_name=fname,
+                mime="text/html",
+                type="primary",
+            ):
+                st.session_state.report_downloaded = True
+        with col_pdf:
+            if _pdf_ok and _pdf_bytes:
+                st.download_button(
+                    label="📄 Download PDF",
+                    data=_pdf_bytes,
+                    file_name=fname.replace(".html", ".pdf"),
+                    mime="application/pdf",
+                    type="secondary",
+                )
+            else:
+                st.caption("PDF unavailable (reportlab not installed).")
         if st.session_state.get("report_downloaded", False):
             st.success("✓ Report downloaded successfully. Check your Downloads folder.")
         st.caption(
@@ -1132,8 +1210,7 @@ def screen_email_sent():
 # ---------------------------------------------------------------------------
 
 _SCREENS = {
-    "welcome":    screen_welcome,
-    "consent":    screen_consent,
+    "welcome":    screen_welcome_consent,
     "profile":    screen_profile,
     "assessment": screen_assessment,
     "review":     screen_review,
@@ -1142,4 +1219,4 @@ _SCREENS = {
 }
 
 current_screen = st.session_state.get("screen", "welcome")
-_SCREENS.get(current_screen, screen_welcome)()
+_SCREENS.get(current_screen, screen_welcome_consent)()
