@@ -829,10 +829,15 @@ PRIVACY_NOTICE_PARAGRAPHS = [
     (
         "**Your rights:** You may request deletion of your data at any time by emailing "
         "info@techkative.com. "
-        "For Ghana respondents: this collection is conducted in alignment with the "
-        "Data Protection Act, 2012 (Act 843). "
-        "For Nigeria respondents: this collection is conducted in alignment with "
-        "NDPA 2023 / GAID 2025."
+        "**Ghana respondents:** this collection is conducted under the lawful processing "
+        "basis in the Data Protection Act, 2012 (Act 843 §18). Cross-border data transfers "
+        "are subject to Act 843 §30(4) — your data is processed within Ghana-governed "
+        "infrastructure where practicable. "
+        "**Nigeria respondents:** this collection is conducted in alignment with NDPA 2023 "
+        "and the GAID 2025 Article 18 cross-border transfer obligations — your data stays "
+        "within Nigeria-governed infrastructure where practicable. "
+        "**Continental context:** aligned with the Africa Declaration on AI, Kigali, "
+        "4 April 2025."
     ),
     (
         "By proceeding, you confirm that you have authority to complete this diagnostic "

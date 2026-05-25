@@ -245,20 +245,11 @@ def screen_welcome_consent():
         f'text-transform:uppercase;color:{styles.PRIMARY};">Institutional Self-Assessment</p>',
         unsafe_allow_html=True,
     )
-    st.markdown("## AI-Readiness Diagnostic")
+    st.markdown("## Know your school's AI readiness in 15 minutes — and what to do next.")
     st.markdown(
-        f'<p style="font-size:16px;font-style:italic;color:{styles.MUTED};line-height:1.7;">'
-        "A structured instrument for African education institutions to assess their readiness "
-        "to govern, deploy, and absorb artificial intelligence responsibly."
-        "</p>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        f'<p style="font-size:14px;color:{styles.SLATE};line-height:1.7;">'
-        "This diagnostic assesses your institution across four pillars. "
-        "Each question is calibrated against current practice, not aspiration. "
-        "Allow approximately <strong>20 minutes</strong> of uninterrupted time. "
-        "Your completed profile is delivered as a downloadable HTML report."
+        f'<p style="font-size:15px;color:{styles.SLATE};line-height:1.7;">'
+        "A free 4-pillar diagnostic for African school heads — grounded in the Data Protection "
+        "Act 2012 (Act 843) and Africa's declared AI principles. No login. Works on any Android."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -283,6 +274,15 @@ def screen_welcome_consent():
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
 
+    st.markdown(
+        f'<p style="font-size:11px;color:{styles.MUTED};line-height:1.6;">'
+        "Ghana: Act 843 §18 (lawful processing) &amp; §30(4) (cross-border). "
+        "Nigeria: NDPA 2023 &amp; GAID 2025 Art. 18. "
+        "Continental: Africa Declaration on AI, Kigali, 4 April 2025."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+
     agreed = st.checkbox(
         "I have read and accept the Privacy Notice above, and confirm I have authority "
         "to complete this diagnostic on behalf of my institution."
@@ -291,7 +291,7 @@ def screen_welcome_consent():
     col_cta, col_space = st.columns([2, 3])
     with col_cta:
         if st.button(
-            "Begin the Diagnostic →",
+            "I consent and continue →",
             type="primary",
             use_container_width=True,
             disabled=not agreed,
@@ -397,15 +397,12 @@ def screen_profile():
             unsafe_allow_html=True,
         )
     else:
-        country_index = (
-            COUNTRY_OPTIONS.index(current_country) + 1
-            if current_country in COUNTRY_OPTIONS
-            else 0
-        )
-        country = st.selectbox(
+        radio_index = COUNTRY_OPTIONS.index(current_country) if current_country in COUNTRY_OPTIONS else 0
+        country = st.radio(
             "Country *",
-            options=["— Select —"] + COUNTRY_OPTIONS,
-            index=country_index,
+            options=COUNTRY_OPTIONS,
+            index=radio_index,
+            horizontal=True,
         )
         _field_error("country")
 
@@ -471,7 +468,7 @@ def screen_profile():
             state.go("welcome")
     with col_fwd:
         proceed = st.button(
-            "Continue to Assessment →", type="primary", use_container_width=True
+            "Start my readiness check →", type="primary", use_container_width=True
         )
 
     if proceed:
@@ -480,8 +477,6 @@ def screen_profile():
             new_errors["institution_name"] = "Institution name is required."
         if institution_type == "— Select —":
             new_errors["institution_type"] = "Please select an institution type."
-        if not country_locked and country == "— Select —":
-            new_errors["country"] = "Please select a country."
         if not contact_email.strip():
             new_errors["contact_email"] = "Email address is required."
         elif "@" not in contact_email or "." not in contact_email.split("@")[-1]:
@@ -506,9 +501,32 @@ def screen_profile():
                 "consent_given_at":  state.get_consent(),
                 "session_token":     st.session_state.get("session_token", ""),
             })
+            _token = st.session_state.get("session_token", "")
+            if _token:
+                try:
+                    session_store.save(_token, state.build_draft_payload())
+                except Exception:
+                    pass
             state.go("assessment")
         else:
             st.rerun()
+
+    # Resume link — show once profile is saved
+    _token = st.session_state.get("session_token", "")
+    if _token and state.profile_complete():
+        _base_url = (
+            (st.secrets.get("APP_URL", "") if hasattr(st, "secrets") else "")
+            or "https://techkative-diagnostic.streamlit.app"
+        )
+        with st.expander("💾 Save your progress to return later"):
+            st.caption(
+                f"Bookmark or copy this link to resume your diagnostic from this point:"
+            )
+            st.code(f"{_base_url}?token={_token}", language=None)
+            st.caption(
+                "This link is valid for 7 days. Your progress is also saved automatically "
+                "after each section — or use the Save Draft button on the questions screen."
+            )
 
     _footer()
 
@@ -1212,7 +1230,8 @@ def screen_email_sent():
 _SCREENS = {
     "welcome":    screen_welcome_consent,
     "profile":    screen_profile,
-    "assessment": screen_assessment,
+    "pillars":    screen_assessment,   # canonical name per v3.0 spec
+    "assessment": screen_assessment,   # legacy alias (saved sessions, draft files)
     "review":     screen_review,
     "results":    screen_results,
     "email_sent": screen_email_sent,
