@@ -210,6 +210,7 @@ _LANG_LABELS = {"en": "English", "tw": "Twi (DRAFT)", "dag": "Dagbani (DRAFT)"}
 
 def screen_welcome_consent():
     _header()
+    _mode_tabs()
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1227,8 +1228,34 @@ _SMKIT_SEV_COLOURS = {"high": "#c0392b", "medium": "#d68910", "low": "#239b56"}
 _SMKIT_TYPE_LABELS = {"RISK": "⚠ Risk", "GAP": "◎ Gap", "TREND": "↗ Trend"}
 
 
+def _mode_tabs():
+    """Two-button mode switcher rendered at the top of welcome and SMKit screens."""
+    mode = st.session_state.get("app_mode", "questionnaire")
+    col_q, col_s = st.columns(2)
+    with col_q:
+        if st.button(
+            "📋  Questionnaire",
+            type="primary" if mode != "smkit" else "secondary",
+            use_container_width=True,
+            key="mode_btn_q",
+        ):
+            st.session_state.app_mode = "questionnaire"
+            st.rerun()
+    with col_s:
+        if st.button(
+            "📊  SMKit Instant Diagnostic",
+            type="primary" if mode == "smkit" else "secondary",
+            use_container_width=True,
+            key="mode_btn_s",
+        ):
+            st.session_state.app_mode = "smkit"
+            st.rerun()
+    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+
+
 def screen_smkit():
     _header()
+    _mode_tabs()
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
         f'<p style="font-size:12px;font-weight:700;letter-spacing:0.1em;'
@@ -1244,14 +1271,16 @@ def screen_smkit():
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        f'<p style="font-size:12px;color:{styles.MUTED};">'
-        "Don't have a file yet? Download the "
-        "<a href='sample_smkit_entries.json' download style='color:{styles.PRIMARY};'>"
-        "sample data file</a> to try it out."
-        "</p>",
-        unsafe_allow_html=True,
-    )
+    _sample_path = Path("sample_smkit_entries.json")
+    if _sample_path.exists():
+        st.download_button(
+            "📥 Download sample data (3 weeks, one school)",
+            data=_sample_path.read_bytes(),
+            file_name="sample_smkit_entries.json",
+            mime="application/json",
+            type="secondary",
+            help="Save this file, then upload it below to see a live demo report.",
+        )
 
     uploaded = st.file_uploader(
         "Upload SMKit diary export (JSON or CSV)",
@@ -1370,7 +1399,8 @@ def screen_smkit():
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("← Back to Questionnaire", type="secondary"):
         st.session_state.pop("smkit_uploader", None)
-        state.go("welcome")
+        st.session_state.app_mode = "questionnaire"
+        st.rerun()
 
     _footer()
 
@@ -1391,17 +1421,8 @@ _SCREENS = {
 }
 
 current_screen = st.session_state.get("screen", "welcome")
-
-# Top-level mode toggle — only shown when on the welcome screen
 if current_screen == "welcome":
-    _mode = st.radio(
-        "Mode",
-        ["Questionnaire", "SMKit Diary — Instant Diagnostic"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="app_mode",
-    )
-    if _mode == "SMKit Diary — Instant Diagnostic":
+    if st.session_state.get("app_mode") == "smkit":
         screen_smkit()
     else:
         screen_welcome_consent()
