@@ -394,12 +394,15 @@ def screen_profile():
             unsafe_allow_html=True,
         )
     else:
-        radio_index = COUNTRY_OPTIONS.index(current_country) if current_country in COUNTRY_OPTIONS else 0
-        country = st.radio(
+        country_index = (
+            COUNTRY_OPTIONS.index(current_country) + 1
+            if current_country in COUNTRY_OPTIONS
+            else 0
+        )
+        country = st.selectbox(
             "Country *",
-            options=COUNTRY_OPTIONS,
-            index=radio_index,
-            horizontal=True,
+            options=["— Select country —"] + COUNTRY_OPTIONS,
+            index=country_index,
         )
         _field_error("country")
 
@@ -474,6 +477,8 @@ def screen_profile():
             new_errors["institution_name"] = "Institution name is required."
         if institution_type == "— Select —":
             new_errors["institution_type"] = "Please select an institution type."
+        if not country_locked and country == "— Select country —":
+            new_errors["country"] = "Please select a country."
         if not contact_email.strip():
             new_errors["contact_email"] = "Email address is required."
         elif "@" not in contact_email or "." not in contact_email.split("@")[-1]:
