@@ -19,6 +19,10 @@ import db
 import session_store
 import state
 import styles
+from core.i18n import LANGUAGES, audio_path as _i18n_audio_path, t as _i18n_t
+from core.instant_diagnostic import analyse_school
+from core.report import build_feedback_report, render_radar as _smkit_radar
+from core.smkit_ingest import load_entries as _smkit_load
 from email_service import send_all
 from framework import (
     COUNTRY_OPTIONS,
@@ -193,29 +197,11 @@ def _score_bar_html(score: float, colour: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Audio onboarding widget (Priority 4)
+# Audio onboarding widget — backed by core/i18n.py
 # ---------------------------------------------------------------------------
 
-_AUDIO_INTRO = {
-    "English": (
-        "Welcome to the Tech-Kative AI-Readiness Diagnostic. "
-        "This tool helps your institution understand its readiness to govern, "
-        "deploy, and absorb AI responsibly across four pillars."
-    ),
-    "Twi": (
-        "Akwaaba wɔ Tech-Kative AI-Readiness Diagnostic mu. "
-        "Saa nnwuma yi bɛboa wo agyapadwa no ahumfɛ AI ho nimdeɛ wɔ pillar anan mu."
-    ),
-    "Dagbani": (
-        "Ni ti paɣa Tech-Kative AI-Readiness Diagnostic. "
-        "A saa nuntɔɣu nyɛla a gbaŋŋa yeli n-ye A.I. tɔŋ wuhigu pillar naŋ ŋun."
-    ),
-}
-_AUDIO_FILES = {
-    "English": "assets/intro_en.mp3",
-    "Twi":     "assets/intro_tw.mp3",
-    "Dagbani": "assets/intro_dg.mp3",
-}
+# Language display names for the selectbox (maps lang code → label)
+_LANG_LABELS = {"en": "English", "tw": "Twi (DRAFT)", "dag": "Dagbani (DRAFT)"}
 
 
 # ---------------------------------------------------------------------------
@@ -227,17 +213,27 @@ def screen_welcome_consent():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Priority 4 — language selector + audio/text intro
-    lang = st.selectbox(
-        "Language / Ɔkasa / Yɛli",
-        ["English", "Twi", "Dagbani"],
+    # Language selector + audio voice button (core/i18n.py)
+    if "lang" not in st.session_state:
+        st.session_state.lang = "en"
+    _lang_codes = list(_LANG_LABELS.keys())
+    _lang_idx   = _lang_codes.index(st.session_state.get("lang", "en"))
+    _lang_sel   = st.selectbox(
+        "Language · Kasa · Zaŋ",
+        options=_lang_codes,
+        format_func=lambda k: _LANG_LABELS[k],
+        index=_lang_idx,
         label_visibility="collapsed",
     )
-    _audio_path = Path(_AUDIO_FILES[lang])
-    if _audio_path.exists():
-        st.audio(str(_audio_path))
+    st.session_state.lang = _lang_sel
+    _ap = _i18n_audio_path(_lang_sel)
+    if _ap.exists():
+        st.audio(str(_ap))
     else:
-        st.info(_AUDIO_INTRO[lang])
+        # Show text intro + an audio placeholder button
+        st.info(_i18n_t("welcome_intro", _lang_sel))
+        if st.button(_i18n_t("audio_btn", _lang_sel), key="audio_placeholder_btn"):
+            st.caption("Audio recording coming soon — transcript shown above.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown(
@@ -1224,6 +1220,162 @@ def screen_email_sent():
 
 
 # ---------------------------------------------------------------------------
+# Screen — SMKit Diary: Instant Diagnostic (Objective A)
+# ---------------------------------------------------------------------------
+
+_SMKIT_SEV_COLOURS = {"high": "#c0392b", "medium": "#d68910", "low": "#239b56"}
+_SMKIT_TYPE_LABELS = {"RISK": "⚠ Risk", "GAP": "◎ Gap", "TREND": "↗ Trend"}
+
+
+def screen_smkit():
+    _header()
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown(
+        f'<p style="font-size:12px;font-weight:700;letter-spacing:0.1em;'
+        f'text-transform:uppercase;color:{styles.PRIMARY};">SMKit Diary — Instant Diagnostic</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("## School Readiness from Your Diary Data")
+    st.markdown(
+        f'<p style="font-size:14px;color:{styles.MUTED};line-height:1.7;">'
+        "Upload a JSON or CSV export from the Standbasis SMKit Headteacher Diary (one school, "
+        "one or more weeks). The engine runs offline — no data leaves your browser."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f'<p style="font-size:12px;color:{styles.MUTED};">'
+        "Don't have a file yet? Download the "
+        "<a href='sample_smkit_entries.json' download style='color:{styles.PRIMARY};'>"
+        "sample data file</a> to try it out."
+        "</p>",
+        unsafe_allow_html=True,
+    )
+
+    uploaded = st.file_uploader(
+        "Upload SMKit diary export (JSON or CSV)",
+        type=["json", "csv"],
+        key="smkit_uploader",
+    )
+
+    if uploaded is None:
+        st.info("Upload a file above to see your school's instant diagnostic report.")
+        _footer()
+        return
+
+    try:
+        entries = _smkit_load(uploaded)
+    except ValueError as e:
+        st.error(f"Could not load the file:\n\n{e}")
+        _footer()
+        return
+
+    if not entries:
+        st.warning("No valid diary entries found in the uploaded file.")
+        _footer()
+        return
+
+    diag   = analyse_school(entries)
+    report = build_feedback_report(diag)
+
+    # ── Performance score ─────────────────────────────────────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    perf       = report["performance_score"]
+    perf_delta = report["perf_delta"]
+    delta_txt  = (
+        f" (+{perf_delta:.1f} vs last week)" if perf_delta and perf_delta > 0
+        else (f" ({perf_delta:.1f} vs last week)" if perf_delta and perf_delta < 0 else "")
+    )
+    tier_colour = styles.GREEN if perf >= 75 else (styles.AMBER if perf >= 50 else "#c0392b")
+    st.markdown(
+        f'<div style="background:linear-gradient(135deg,{styles.NAVY} 0%,{styles.NAVY_MID} 100%);'
+        f'border-radius:8px;padding:24px 32px;margin-bottom:20px;display:flex;align-items:center;gap:28px;">'
+        f'<div><div style="font-size:52px;font-weight:700;color:{styles.WHITE};line-height:1;">'
+        f'{perf:.0f}</div>'
+        f'<div style="font-size:13px;color:#a89cc8;margin-top:2px;">/100 performance{delta_txt}</div>'
+        f'</div>'
+        f'<div><div style="font-size:14px;font-weight:700;color:#c4a8e0;margin-bottom:4px;">'
+        f'{report["school_name"]}</div>'
+        f'<div style="font-size:13px;color:#a89cc8;">Week ending {report["week_ending"]}</div>'
+        f'</div></div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── Readiness radar ───────────────────────────────────────────────────
+    st.markdown("### AI-Readiness Profile")
+    st.plotly_chart(report["radar_fig"], use_container_width=True)
+
+    # Pillar score tiles
+    rcols = st.columns(4)
+    pids  = ["p1", "p2", "p3", "p4"]
+    pnames = ["Data Foundations", "Governance", "AI Readiness", "Responsible"]
+    pcolours = [styles.PRIMARY, styles.NAVY, styles.GREEN, styles.AMBER]
+    for i, (pid, pname, pc) in enumerate(zip(pids, pnames, pcolours)):
+        score  = report["readiness_scores"].get(pid, 0)
+        rdelta = report["readiness_deltas"].get(pid)
+        with rcols[i]:
+            d_str = (f"+{rdelta:.0f}" if rdelta and rdelta > 0
+                     else (f"{rdelta:.0f}" if rdelta else "—"))
+            st.markdown(
+                f'<div style="background:{styles.WHITE};border-radius:6px;border-top:3px solid {pc};'
+                f'padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,0.07);text-align:center;">'
+                f'<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:{styles.MUTED};">'
+                f'{pname}</div>'
+                f'<div style="font-size:24px;font-weight:700;color:{styles.SLATE};">{score:.0f}</div>'
+                f'<div style="font-size:10px;color:{styles.MUTED};">/100 &nbsp;·&nbsp; {d_str}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    # ── Flags ─────────────────────────────────────────────────────────────
+    if report["flags"]:
+        st.markdown("---")
+        st.markdown("### Flags")
+        for flag in report["flags"]:
+            colour   = _SMKIT_SEV_COLOURS.get(flag.severity, styles.MUTED)
+            type_lbl = _SMKIT_TYPE_LABELS.get(flag.type, flag.type)
+            st.markdown(
+                f'<div style="padding:10px 14px;background:{styles.WASH};border-radius:6px;'
+                f'margin-bottom:8px;border-left:4px solid {colour};">'
+                f'<span style="font-size:10px;font-weight:700;text-transform:uppercase;'
+                f'letter-spacing:0.05em;color:{colour};">{type_lbl} · {flag.severity.upper()}</span>'
+                f'<div style="font-size:13px;color:{styles.SLATE};margin-top:4px;line-height:1.6;">'
+                f'{flag.message}</div>'
+                f'<div style="font-size:11px;color:{styles.MUTED};margin-top:3px;">Evidence: {flag.evidence}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    # ── Trend summary ─────────────────────────────────────────────────────
+    if report["trend_summary"]:
+        st.markdown(
+            f'<p style="font-size:13px;font-style:italic;color:{styles.MUTED};margin-top:8px;">'
+            f'{report["trend_summary"]}</p>',
+            unsafe_allow_html=True,
+        )
+
+    # ── Next steps ────────────────────────────────────────────────────────
+    if report["next_steps"]:
+        st.markdown("---")
+        st.markdown("### What to do next")
+        for step in report["next_steps"]:
+            st.markdown(
+                f'<div style="padding:10px 14px;background:{styles.WASH};border-radius:6px;'
+                f'margin-bottom:8px;font-size:13px;color:{styles.SLATE};line-height:1.65;'
+                f'border-left:3px solid {styles.PRIMARY};">{step}</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("← Back to Questionnaire", type="secondary"):
+        st.session_state.pop("smkit_uploader", None)
+        state.go("welcome")
+
+    _footer()
+
+
+# ---------------------------------------------------------------------------
 # Router
 # ---------------------------------------------------------------------------
 
@@ -1235,7 +1387,23 @@ _SCREENS = {
     "review":     screen_review,
     "results":    screen_results,
     "email_sent": screen_email_sent,
+    "smkit":      screen_smkit,
 }
 
 current_screen = st.session_state.get("screen", "welcome")
-_SCREENS.get(current_screen, screen_welcome_consent)()
+
+# Top-level mode toggle — only shown when on the welcome screen
+if current_screen == "welcome":
+    _mode = st.radio(
+        "Mode",
+        ["Questionnaire", "SMKit Diary — Instant Diagnostic"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="app_mode",
+    )
+    if _mode == "SMKit Diary — Instant Diagnostic":
+        screen_smkit()
+    else:
+        screen_welcome_consent()
+else:
+    _SCREENS.get(current_screen, screen_welcome_consent)()
