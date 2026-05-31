@@ -197,6 +197,15 @@ def load_entries(path_or_buffer) -> list[DiaryEntry]:
 
     content = content.strip()
 
+    # Reject HTML files early (e.g. diagnostic report downloaded by mistake)
+    if content.lstrip().startswith("<"):
+        raise ValueError(
+            "This looks like an HTML file (e.g. a downloaded diagnostic report), "
+            "not an SMKit diary export.\n\n"
+            "Please click '📥 Download sample data' to get the correct JSON file, "
+            "save it to your device, and upload that file instead."
+        )
+
     # Parse: JSON or CSV
     rows: list[dict[str, Any]]
     if content.startswith("[") or content.startswith("{"):
@@ -204,7 +213,11 @@ def load_entries(path_or_buffer) -> list[DiaryEntry]:
             parsed = json.loads(content)
             rows = parsed if isinstance(parsed, list) else [parsed]
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON: {e}") from e
+            raise ValueError(
+                f"Could not parse JSON: {e}\n\n"
+                "Make sure you are uploading the SMKit diary export (JSON or CSV), "
+                "not a diagnostic report or draft file."
+            ) from e
     else:
         reader = csv.DictReader(io.StringIO(content))
         rows = [dict(r) for r in reader]

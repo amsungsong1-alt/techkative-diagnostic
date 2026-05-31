@@ -1276,7 +1276,7 @@ def screen_smkit():
         unsafe_allow_html=True,
     )
 
-    _sample_path = Path("sample_smkit_entries.json")
+    _sample_path = Path(__file__).parent / "sample_smkit_entries.json"
     if _sample_path.exists():
         st.download_button(
             "📥 Download sample data (3 weeks, one school)",
@@ -1284,8 +1284,16 @@ def screen_smkit():
             file_name="sample_smkit_entries.json",
             mime="application/json",
             type="secondary",
-            help="Save this file, then upload it below to see a live demo report.",
+            help="Save this file to your device, then upload it below to see a live demo.",
         )
+
+    st.markdown(
+        f'<p style="font-size:12px;color:{styles.MUTED};margin-top:4px;">'
+        "⚠ Upload the SMKit diary JSON/CSV — <strong>not</strong> your downloaded diagnostic "
+        "report (HTML) or questionnaire draft (JSON)."
+        "</p>",
+        unsafe_allow_html=True,
+    )
 
     uploaded = st.file_uploader(
         "Upload SMKit diary export (JSON or CSV)",
@@ -1298,10 +1306,23 @@ def screen_smkit():
         _footer()
         return
 
+    # Pre-check: reject HTML files before attempting parse
+    _peek = uploaded.read(64)
+    uploaded.seek(0)
+    if _peek.lstrip().startswith(b"<") or uploaded.name.lower().endswith(".html"):
+        st.error(
+            "Wrong file uploaded. This appears to be an HTML diagnostic report, not an "
+            "SMKit diary export.\n\n"
+            "Click **'📥 Download sample data'** above, save the JSON file to your device, "
+            "then upload that file here."
+        )
+        _footer()
+        return
+
     try:
         entries = _smkit_load(uploaded)
     except ValueError as e:
-        st.error(f"Could not load the file:\n\n{e}")
+        st.error(str(e))
         _footer()
         return
 
