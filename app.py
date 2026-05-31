@@ -21,7 +21,12 @@ import state
 import styles
 from core.i18n import LANGUAGES, audio_path as _i18n_audio_path, t as _i18n_t
 from core.instant_diagnostic import analyse_school
-from core.report import build_feedback_report, render_radar as _smkit_radar
+from core.report import (
+    build_feedback_report,
+    build_smkit_html_report,
+    build_smkit_pdf_report,
+    render_radar as _smkit_radar,
+)
 from core.smkit_ingest import load_entries as _smkit_load
 from email_service import send_all
 from framework import (
@@ -1421,6 +1426,43 @@ def screen_smkit():
                 f'border-left:3px solid {styles.PRIMARY};">{step}</div>',
                 unsafe_allow_html=True,
             )
+
+    # ── Download ─────────────────────────────────────────────────────────
+    st.markdown("---")
+    st.subheader("Download This Report")
+    _org_raw   = report.get("school_name", "school")
+    _org_clean = re.sub(r"[^A-Za-z0-9]", "_", _org_raw).strip("_") or "school"
+    _week_str  = report["week_ending"].strftime("%Y%m%d")
+    _fname     = f"SMKit_Diagnostic_{_org_clean}_{_week_str}"
+    _html_data = build_smkit_html_report(report)
+    try:
+        _pdf_data = build_smkit_pdf_report(report)
+        _has_pdf  = True
+    except Exception:
+        _has_pdf  = False
+
+    col_h, col_p = st.columns(2)
+    with col_h:
+        st.download_button(
+            "📥 Download HTML",
+            data=_html_data.encode("utf-8"),
+            file_name=f"{_fname}.html",
+            mime="text/html",
+            type="primary",
+            use_container_width=True,
+        )
+    with col_p:
+        if _has_pdf:
+            st.download_button(
+                "📄 Download PDF",
+                data=_pdf_data,
+                file_name=f"{_fname}.pdf",
+                mime="application/pdf",
+                type="secondary",
+                use_container_width=True,
+            )
+        else:
+            st.caption("PDF requires reportlab (see requirements.txt)")
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("← Back to Questionnaire", type="secondary"):
